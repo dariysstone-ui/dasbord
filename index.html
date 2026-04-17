@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📊 Дашборд обращений</title>
+  <style>
+    :root { --bg-main: #0b1120; --bg-panel: #1e293b; --border: #334155; --text-main: #f1f5f9; --text-muted: #94a3b8; --accent: #3b82f6; --success: #10b981; --success-bg: rgba(16,185,129,0.15); --danger: #ef4444; --danger-bg: rgba(239,68,68,0.15); }
+    body { font-family: system-ui, sans-serif; background: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; }
+    .container { max-width: 1600px; margin: 0 auto; }
+    .setup-panel { background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+    label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 12px; }
+    input { width: 100%; padding: 8px; background: #162032; border: 1px solid var(--border); border-radius: 6px; color: white; box-sizing: border-box;}
+    button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    button:hover { opacity: 0.9; }
+    .loader { display: none; text-align: center; color: var(--text-muted); padding: 20px; }
+    .loader.active { display: block; }
+    
+    .tabs { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; }
+    .tab-btn { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 16px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+    .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; } }
+    .section-block { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .section-title { font-size: 14px; font-weight: bold; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--text-muted); font-size: 11px; padding: 8px; border-bottom: 2px solid var(--border); }
+    td { padding: 8px; border-bottom: 1px solid var(--border); }
+    
+    .dyn-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+    .dyn-good { background: var(--success-bg); color: var(--success); }
+    .dyn-bad { background: var(--danger-bg); color: var(--danger); }
+    .dyn-neutral { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="setup-panel">
+    <h2 style="margin:0; color:white;">📊 Дашборд обращений</h2>
+    <div class="form-grid">
+      <div><label>Период: с</label><input type="date" id="startDate"></div>
+      <div><label>Период: по</label><input type="date" id="endDate"></div>
+      <div><label>Сравнение: с</label><input type="date" id="compStartDate"></div>
+      <div><label>Сравнение: по</label><input type="date" id="compEndDate"></div>
+      <button id="generateBtn">🚀 Загрузить</button>
+    </div>
+    <div class="loader" id="loader">⏳ Загрузка данных...</div>
+  </div>
+
+  <div id="dashboardContainer" style="display:none;">
+    <div class="tabs" id="tabsNav"></div>
+    <div id="tabsContent"></div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('generateBtn').onclick = async () => {
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    const cs = document.getElementById('compStartDate').value;
+    const ce = document.getElementById('compEndDate').value;
+    
+    if (!s || !e || !cs || !ce) return alert('Заполните все 4 поля с датами');
+
+    const loader = document.getElementById('loader');
+    const btn = document.getElementById('generateBtn');
+    loader.classList.add('active');
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ start: s, end: e, compStart: cs, compEnd: ce })
+      });
+      
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      
+      renderDashboard(json.data);
+    } catch (err) {
+      console.error('Ошибка:', err);
+      alert('Ошибка: ' + err.message);
+    } finally {
+      loader.classList.remove('active');
+      btn.disabled = false;
+    }
+  };
+
+  function renderDashboard(data) {
+    const nav = document.getElementById('tabsNav');
+    const cont = document.getElementById('tabsContent');
+    nav.innerHTML = ''; cont.innerHTML = '';
+    document.getElementById('dashboardContainer').style.display = 'block';
+
+    data.forEach((item, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn' + (i===0?' active':'');
+      btn.textContent = `${item.name} (${item.total})`;
+      btn.onclick = () => switchTab(i);
+      nav.appendChild(btn);
+
+      const div = document.createElement('div');
+      div.className = 'tab-content' + (i===0?' active':'');
+      
+      const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
+      const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
+      const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
+      const htmlMail = item.mails.map(m => `<tr><td>${m.email}</td><td>${m.count}</td><td>${m.omsus.join(', ')}</td></tr>`).join('');
+      const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
+
+      div.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin-bottom:20px;">
+           <div style="background:#1e293b; padding:15px; border-radius:8px; text-align:center; border:1px solid #334155;"><div style="font-size:24px; font-weight:bold; color:#3b82f6;">${item.total}</div><div style="font-size:11px; color:#94a3b8;">Всего</div></div>
+           <div style="background:#1e293b; padding:15px; border-radius:8px; text-align:center; border:1px solid #334155;"><div>${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div style="font-size:11px; color:#94a3b8;">Динамика</div></div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
+          <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
+          <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
+          <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>ОМСУ</th></tr>${htmlMail}</table></div>
+          <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
+        </div>
+      `;
+      cont.appendChild(div);
+    });
+  }
+
+  function renderDyn(pct, abs) {
+    if (pct === 0) return '<span class="dyn-badge dyn-neutral">→ 0</span>';
+    const isGood = abs <= 0;
+    const cls = isGood ? 'dyn-good' : 'dyn-bad';
+    const arrow = abs > 0 ? '↑' : '↓';
+    const sign = abs > 0 ? '+' : '';
+    return `<span class="dyn-badge ${cls}">${arrow} ${sign}${pct}% (${sign}${abs})</span>`;
+  }
+
+  function switchTab(idx) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+    document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
+  }
+</script>
+</body>
+</html>
