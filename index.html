@@ -166,10 +166,20 @@
   }
 
   // Экспорт в HTML
-  document.getElementById('exportBtn').onclick = () => {
-    if (!currentData || !currentPeriods) return;
-    
-    const htmlContent = `<!DOCTYPE html>
+document.getElementById('exportBtn').onclick = () => {
+  if (!currentData || !currentPeriods) return;
+  
+  // Функция для рендеринга динамики (вспомогательная)
+  const renderDynExport = (pct, abs) => {
+    if (pct === 0) return '<span class="dyn-badge dyn-neutral">→ 0</span>';
+    const isGood = abs <= 0;
+    const cls = isGood ? 'dyn-good' : 'dyn-bad';
+    const arrow = abs > 0 ? '↑' : '↓';
+    const sign = abs > 0 ? '+' : '';
+    return `<span class="dyn-badge ${cls}">${arrow} ${sign}${pct}% (${sign}${abs})</span>`;
+  };
+
+  const htmlContent = `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -244,28 +254,20 @@
     document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
     document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
   }
-  function renderDynExport(pct, abs) {
-    if (pct === 0) return '<span class="dyn-badge dyn-neutral">→ 0</span>';
-    const isGood = abs <= 0;
-    const cls = isGood ? 'dyn-good' : 'dyn-bad';
-    const arrow = abs > 0 ? '↑' : '↓';
-    const sign = abs > 0 ? '+' : '';
-    return '<span class="dyn-badge ' + cls + '">' + arrow + ' ' + sign + pct + '% (' + sign + abs + ')</span>';
-  }
 <\/script>
 </body>
 </html>`;
 
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dashboard_${currentPeriods.start}_${currentPeriods.end}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `dashboard_${currentPeriods.start}_${currentPeriods.end}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 </script>
 </body>
 </html>
