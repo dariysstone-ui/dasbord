@@ -1,12 +1,13 @@
 // api/index.js
 export default async function handler(req, res) {
-  // Настройка CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
     const { start, end, compStart, compEnd } = req.body;
@@ -19,20 +20,17 @@ export default async function handler(req, res) {
     const RANGE = 'Sheet1!A:Z';
 
     if (!SHEET_ID || !API_KEY) {
-      return res.status(500).json({ error: 'Не настроены переменные окружения (SHEET_ID, GOOGLE_API_KEY)' });
+      return res.status(500).json({ error: 'Не настроены переменные окружения' });
     }
 
-    // Загрузка данных из Google Sheets
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
     const response = await fetch(url);
+    
     if (!response.ok) throw new Error(`Ошибка Google Sheets: ${response.status}`);
     
     const data = await response.json();
-    if (!data.values || data.values.length < 2) {
-      return res.status(400).json({ error: 'Таблица пуста или не содержит данных' });
-    }
+    if (!data.values || data.values.length < 2) return res.status(400).json({ error: 'Таблица пуста' });
 
-    // Парсинг строк в объекты
     const headers = data.values[0].map(h => h.trim());
     const rows = data.values.slice(1).map(row => {
       const obj = {};
@@ -40,7 +38,7 @@ export default async function handler(req, res) {
       return obj;
     });
 
-    // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+    // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
     const parseDate = (val) => {
       if (!val) return null;
       if (typeof val === 'string') {
@@ -76,11 +74,13 @@ export default async function handler(req, res) {
         const fact = (r['Факт'] || '').trim() || 'Нет';
         groups[sg].fact[fact] = (groups[sg].fact[fact] || 0) + 1;
 
+        // ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ ЗАЯВИТЕЛЕЙ
         const mail = ((r['Почта заявителя'] || '').trim()).toLowerCase();
         if (mail && mail !== 'нет') {
-          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, omsus: {} };
+          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {} };
           groups[sg].mail[mail].c++;
-          if (omsu !== 'Нет') groups[sg].mail[mail].omsus[omsu] = true;
+          // Считаем факты заявителя
+          groups[sg].mail[mail].facts[fact] = (groups[sg].mail[mail].facts[fact] || 0) + 1;
         }
 
         const fullAddr = (r['Адрес'] || '').trim();
@@ -94,9 +94,9 @@ export default async function handler(req, res) {
       return groups;
     };
 
-    const getTop = (obj, n) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
+    const getTop = (obj, n) => Object.entries(obj).sort((a, b) => b[1].c - a[1].c).slice(0, n);
 
-    // === ОСНОВНАЯ ЛОГИКА ===
+    // --- ОСНОВНАЯ ЛОГИКА ---
     const mainData = filter(rows, start, end);
     const compData = filter(rows, compStart, compEnd);
     const statsMain = buildStats(mainData);
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
       const entry = { name, total: m.total, compTotal: c.total, subs: [], facts: [], omsus: [], mails: [], addrs: [] };
 
       // Топ-5 Подтем
-      getTop(m.sub, 5).forEach(([k, v]) => {
+      Object.entries(m.sub).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([k, v]) => {
         const cv = c.sub[k] || 0;
         const diff = v - cv;
         const pct = cv === 0 ? (v > 0 ? 100 : 0) : Math.round((diff / cv) * 100);
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
       });
 
       // Топ-5 Фактов
-      getTop(m.fact, 5).forEach(([k, v]) => {
+      Object.entries(m.fact).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([k, v]) => {
         const cv = c.fact[k] || 0;
         const diff = v - cv;
         const pct = cv === 0 ? (v > 0 ? 100 : 0) : Math.round((diff / cv) * 100);
@@ -135,9 +135,15 @@ export default async function handler(req, res) {
         entry.omsus.push({ name: k, count: d.c, dynPct: pct, dynAbs: diff, mainSub: mainSt, mainSubCnt: mainStCnt, mainSubPct: stPct });
       });
 
-      // Топ-10 Заявителей
+      // Топ-10 Заявителей (ИСПРАВЛЕНО)
       getTop(m.mail, 10).forEach(([k, d]) => {
-        entry.mails.push({ email: k, count: d.c, omsus: Object.keys(d.omsus).slice(0, 3) });
+        // Сортируем факты заявителя по убыванию
+        const sortedFacts = Object.entries(d.facts).sort((a, b) => b[1] - a[1]);
+        entry.mails.push({ 
+          email: k, 
+          count: d.c, 
+          facts: sortedFacts // Теперь передаем массив фактов
+        });
       });
 
       // Топ-10 Адресов
