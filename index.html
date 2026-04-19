@@ -145,7 +145,7 @@
         <tr class="clickable-row" onclick="toggleFacts(this)">
           <td><span class="expand-icon">▶</span> ${m.email}</td>
           <td>${m.count}</td>
-          <td style="color:#94a3b8; font-size:12px;">Нажмите, чтобы увидеть факты</td>
+          <td style="color:#94a3b8; font-size:12px;">${m.omsus.join(', ') || 'Нет данных'}</td>
         </tr>
         <tr style="display:none;" class="fact-row-${i}-${idx}">
           <td colspan="3" style="padding:0;">
