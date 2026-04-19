@@ -77,10 +77,12 @@ export default async function handler(req, res) {
         // ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ ЗАЯВИТЕЛЕЙ
         const mail = ((r['Почта заявителя'] || '').trim()).toLowerCase();
         if (mail && mail !== 'нет') {
-          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {} };
+          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {}, omsus: new Set() };
           groups[sg].mail[mail].c++;
           // Считаем факты заявителя
           groups[sg].mail[mail].facts[fact] = (groups[sg].mail[mail].facts[fact] || 0) + 1;
+          // Сохраняем ОМСУ
+          if (omsu !== 'Нет') groups[sg].mail[mail].omsus.add(omsu);
         }
 
         const fullAddr = (r['Адрес'] || '').trim();
@@ -142,7 +144,8 @@ export default async function handler(req, res) {
         entry.mails.push({ 
           email: k, 
           count: d.c, 
-          facts: sortedFacts // Теперь передаем массив фактов
+          facts: sortedFacts,
+          omsus: Array.from(d.omsus).slice(0, 3) // Первые 3 ОМСУ
         });
       });
 
