@@ -1,4 +1,3 @@
-// api/index.js
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -10,36 +9,102 @@ export default async function handler(req, res) {
   try {
     const { start, end, compStart, compEnd, omsuFilter = [] } = req.body;
     
+    console.log('Request params:', { start, end, compStart, compEnd, omsuFilter });
+    
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
 
     const SHEET_ID = process.env.SHEET_ID;
     const API_KEY = process.env.GOOGLE_API_KEY;
-    const RANGE = 'Лист1!A:Z';
+    
+    console.log('Sheet ID:', SHEET_ID);
+    console.log('API Key exists:', !!API_KEY);
 
     if (!SHEET_ID || !API_KEY) {
-      return res.status(500).json({ error: 'Не настроены переменные окружения' });
+      return res.status(500).json({ 
+        error: 'Не настроены переменные окружения',
+        hasSheetId: !!SHEET_ID,
+        hasApiKey: !!API_KEY
+      });
     }
+
+    // Сначала получаем метаданные таблицы чтобы узнать имя листа
+    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?key=${API_KEY}`;
+    console.log('Fetching metadata from:', metaUrl);
+    
+    const metaResponse = await fetch(metaUrl);
+    if (!metaResponse.ok) {
+      const errorText = await metaResponse.text();
+      console.error('Metadata error:', metaResponse.status, errorText);
+      throw new Error(`Ошибка метаданных: ${metaResponse.status} - ${errorText.substring(0, 200)}`);
+    }
+    
+    const metadata = await metaResponse.json();
+    console.log('Sheet metadata:', {
+      title: metadata.properties?.title,
+      sheetCount: metadata.sheets?.length
+    });
+    
+    // Получаем имя первого листа
+    const sheetName = metadata.sheets?.[0]?.properties?.title || 'Лист1';
+    const RANGE = `${sheetName}!A:Z`;
+    
+    console.log('Using sheet name:', sheetName);
+    console.log('Range:', RANGE);
 
     // Загрузка данных из Google Sheets
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
+    console.log('Fetching data from:', url);
+    
     const response = await fetch(url);
+    const responseText = await response.text();
     
-    if (!response.ok) throw new Error(`Ошибка Google Sheets: ${response.status}`);
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
-    const data = await response.json();
+    if (!response.ok) {
+      console.error('Error response:', responseText.substring(0, 500));
+      throw new Error(`Ошибка Google Sheets API: ${response.status}\n${responseText.substring(0, 300)}`);
+    }
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      throw new Error('Неверный формат ответа от Google Sheets');
+    }
+    
+    console.log('Data received:', {
+      range: data.range,
+      majorDimension: data.majorDimension,
+      rowCount: data.values?.length || 0
+    });
+    
     if (!data.values || data.values.length < 2) {
-      return res.status(400).json({ error: 'Таблица пуста или не содержит данных' });
+      return res.status(400).json({ 
+        error: 'Таблица пуста или содержит только заголовки',
+        rowCount: data.values?.length || 0
+      });
     }
 
     // Парсинг строк в объекты
-    const headers = data.values[0].map(h => h.trim());
-    const rows = data.values.slice(1).map(row => {
+    const headers = data.values[0].map(h => String(h || '').trim());
+    console.log('Headers:', headers);
+    
+    const rows = data.values.slice(1).map((row, idx) => {
       const obj = {};
-      headers.forEach((h, i) => obj[h] = (row[i] || '').trim());
+      headers.forEach((h, i) => {
+        obj[h] = String(row[i] || '').trim();
+      });
       return obj;
     });
+    
+    console.log('Parsed rows:', rows.length);
+    if (rows.length > 0) {
+      console.log('Sample row:', rows[0]);
+    }
 
     // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
     const parseDate = (val) => {
@@ -149,6 +214,11 @@ export default async function handler(req, res) {
     const mainData = filter(rows, start, end, omsuFilter);
     const compData = filter(rows, compStart, compEnd, omsuFilter);
     
+    console.log('Filtered data:', {
+      mainCount: mainData.length,
+      compCount: compData.length
+    });
+    
     const statsMain = aggregateData(mainData);
     const statsComp = aggregateData(compData);
     
@@ -166,6 +236,9 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('API Error:', err);
-    return res.status(500).json({ error: err.message || 'Внутренняя ошибка сервера' });
+    return res.status(500).json({ 
+      error: err.message || 'Внутренняя ошибка сервера',
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 }
