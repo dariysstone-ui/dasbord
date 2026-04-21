@@ -51,162 +51,126 @@
       font-weight: bold;
     }
     button:hover { opacity: 0.9; }
-    .tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      overflow-x: auto;
-    }
-    .tab-btn {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .tab-btn.active {
-      background: var(--accent);
-      color: white;
-      border-color: var(--accent);
-    }
-    .tab-content {
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    /* Лоадер */
+    .loader-overlay {
       display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(11, 17, 32, 0.8);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
     }
-    .tab-content.active {
-      display: block;
+    .loader-overlay.active { display: flex; }
+    .loader-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid var(--border);
+      border-top: 4px solid var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
     }
-    .metrics-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
-      margin-bottom: 20px;
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .loader-text {
+      margin-top: 15px;
+      color: var(--text-main);
+      font-size: 16px;
     }
-    .metric-card {
-      background: var(--bg-panel);
-      padding: 20px;
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid var(--border);
+    
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; }
+    .tab-btn {
+      background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted);
+      padding: 8px 16px; border-radius: 6px; cursor: pointer; white-space: nowrap;
     }
-    .metric-val {
-      font-size: 32px;
-      font-weight: bold;
-      color: var(--accent);
-      margin-bottom: 5px;
-    }
-    .metric-label {
-      font-size: 12px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-    }
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    @media(max-width: 1000px) {
-      .dashboard-grid { grid-template-columns: 1fr; }
-      .metrics-row { grid-template-columns: repeat(2, 1fr); }
-    }
-    .section-block {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-    }
-    .section-title {
-      font-size: 14px;
-      font-weight: bold;
-      color: var(--accent);
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 8px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th {
-      text-align: left;
-      color: var(--text-muted);
-      font-size: 11px;
-      padding: 8px;
-      border-bottom: 2px solid var(--border);
-    }
-    td {
-      padding: 8px;
-      border-bottom: 1px solid var(--border);
-    }
-    .dyn-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: bold;
-    }
+    .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+    .metric-card { background: var(--bg-panel); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
+    .metric-val { font-size: 32px; font-weight: bold; color: var(--accent); margin-bottom: 5px; }
+    .metric-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; } .metrics-row { grid-template-columns: repeat(2, 1fr); } }
+    .section-block { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .section-title { font-size: 14px; font-weight: bold; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--text-muted); font-size: 11px; padding: 8px; border-bottom: 2px solid var(--border); }
+    td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .dyn-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
     .dyn-good { background: var(--success-bg); color: var(--success); }
     .dyn-bad { background: var(--danger-bg); color: var(--danger); }
-    .export-btn {
-      background: var(--success);
-      margin-top: 20px;
-      width: 100%;
-    }
+    .export-btn { background: var(--success); margin-top: 20px; width: 100%; }
+    .export-excel-btn { background: #10b981; margin-top: 10px; width: 100%; }
     .omsu-filter { position: relative; }
-    .omsu-select {
-      width: 100%;
-      padding: 8px;
-      background: #162032;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: white;
-      cursor: pointer;
-    }
-    .omsu-dropdown {
-      display: none;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      max-height: 300px;
-      overflow-y: auto;
-      z-index: 1000;
-      margin-top: 4px;
-    }
+    .omsu-select { width: 100%; padding: 8px; background: #162032; border: 1px solid var(--border); border-radius: 6px; color: white; cursor: pointer; }
+    .omsu-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; max-height: 300px; overflow-y: auto; z-index: 1000; margin-top: 4px; }
     .omsu-dropdown.show { display: block; }
-    .omsu-option {
-      padding: 8px 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .omsu-option { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
     .omsu-option:hover { background: rgba(255,255,255,0.05); }
     .omsu-option input { width: auto; margin: 0; }
-    .clear-filter {
-      background: var(--danger);
-      color: white;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 11px;
-      margin-left: 8px;
+    .clear-filter { background: var(--danger); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
+    
+    /* Стили для раскрывающихся фактов */
+    .clickable-row { cursor: pointer; transition: background 0.2s; }
+    .clickable-row:hover { background: rgba(255,255,255,0.05); }
+    .expand-icon { display: inline-block; transition: transform 0.3s; margin-right: 8px; font-size: 12px; }
+    .expanded .expand-icon { transform: rotate(90deg); }
+    .fact-list { 
+      display: none; 
+      margin-top: 8px; 
+      background: #0f172a; 
+      border-radius: 8px; 
+      padding: 12px;
+      border: 1px solid var(--border);
     }
-    .export-excel-btn {
-      background: #10b981;
-      margin-top: 10px;
-      width: 100%;
+    .fact-list.show { display: block; }
+    .fact-item { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: flex-start;
+      padding: 6px 0; 
+      border-bottom: 1px solid #334155;
+      line-height: 1.4;
+    }
+    .fact-item:last-child { border-bottom: none; }
+    .fact-name { flex: 1; margin-right: 12px; }
+    .fact-count { 
+      background: var(--bg-panel); 
+      padding: 2px 8px; 
+      border-radius: 12px; 
+      font-size: 11px; 
+      font-weight: bold;
+      white-space: nowrap;
+      min-width: 30px;
+      text-align: center;
+    }
+    .omsu-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .omsu-tag {
+      background: var(--bg-panel);
+      color: var(--text-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      border: 1px solid var(--border);
     }
   </style>
 </head>
 <body>
+<!-- Лоадер -->
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="loader-spinner"></div>
+  <div class="loader-text" id="loaderText">Загрузка данных...</div>
+</div>
+
 <div class="container">
   <div class="setup-panel">
     <h2 style="margin:0; color:white;">📊 Дашборд обращений</h2>
@@ -241,6 +205,15 @@ let currentPeriods = null;
 let selectedOmsu = new Set();
 let rawData = [];
 
+function showLoader(text) {
+  document.getElementById('loaderText').textContent = text || 'Загрузка данных...';
+  document.getElementById('loaderOverlay').classList.add('active');
+}
+
+function hideLoader() {
+  document.getElementById('loaderOverlay').classList.remove('active');
+}
+
 function initOmsuDropdown() {
   const dropdown = document.getElementById('omsuDropdown');
   dropdown.innerHTML = OMSU_LIST.sort().map(omsu => `
@@ -273,12 +246,17 @@ document.getElementById('generateBtn').onclick = async () => {
   
   if (!s || !e || !cs || !ce) { alert('Заполните все 4 поля с датами'); return; }
 
+  showLoader('Подключение к Google Sheets...');
+  document.getElementById('generateBtn').disabled = true;
+
   try {
     const res = await fetch('/api', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ start: s, end: e, compStart: cs, compEnd: ce, omsuFilter: Array.from(selectedOmsu) })
     });
+    
+    showLoader('Обработка данных...');
     const json = await res.json();
     if (json.error) throw new Error(json.error);
     
@@ -295,6 +273,9 @@ document.getElementById('generateBtn').onclick = async () => {
     }
   } catch (err) {
     alert('Ошибка: ' + err.message);
+  } finally {
+    hideLoader();
+    document.getElementById('generateBtn').disabled = false;
   }
 };
 
@@ -317,7 +298,27 @@ function renderDashboard(data) {
     const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
     const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
     const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
-    const htmlMail = item.mails.map(m => `<tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;"><td>▶ ${m.email}</td><td>${m.count}</td><td style="color:#94a3b8;font-size:12px;">Нажмите</td></tr><tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>`).join('');
+    
+    // Генерация таблицы заявителей с ОМСУ и читаемыми фактами
+    const htmlMail = item.mails.map(m => {
+      const omsuHtml = m.omsus.length > 0 
+        ? `<div class="omsu-list">${m.omsus.map(o => `<span class="omsu-tag">${o}</span>`).join('')}</div>`
+        : '<span style="color:#666;font-size:12px;">-</span>';
+      
+      const factsHtml = m.facts.length > 0
+        ? `<div class="fact-list"><strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты обращений:</strong>${m.facts.map(f => `<div class="fact-item"><span class="fact-name">${f[0]}</span><span class="fact-count">${f[1]}</span></div>`).join('')}</div>`
+        : '<span style="color:#666;font-size:12px;">Нет данных</span>';
+      
+      return `
+        <tr class="clickable-row" onclick="toggleFacts(this)">
+          <td style="max-width:250px;"><span class="expand-icon">▶</span><span style="word-break:break-word;">${m.email}</span>${omsuHtml}</td>
+          <td style="text-align:center;font-weight:bold;">${m.count}</td>
+          <td style="color:#94a3b8;font-size:12px;">Нажмите для деталей</td>
+        </tr>
+        <tr style="display:none;"><td colspan="3" style="padding:0 8px 8px 8px;">${factsHtml}</td></tr>
+      `;
+    }).join('');
+    
     const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
     
     div.innerHTML = `
@@ -331,7 +332,7 @@ function renderDashboard(data) {
         <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
         <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
         <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
-        <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div>
+        <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th style="text-align:center;">Кол-во</th><th>Детали</th></tr>${htmlMail}</table></div>
         <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
       </div>
     `;
@@ -354,10 +355,18 @@ function switchTab(idx) {
 }
 
 window.toggleFacts = function(row) {
+  row.classList.toggle('expanded');
   const factRow = row.nextElementSibling;
   const factList = factRow.querySelector('.fact-list');
-  if (factRow.style.display === 'none') { factRow.style.display = 'table-row'; if(factList) factList.classList.add('show'); row.querySelector('.expand-icon').style.transform = 'rotate(90deg)'; }
-  else { factRow.style.display = 'none'; if(factList) factList.classList.remove('show'); row.querySelector('.expand-icon').style.transform = 'rotate(0deg)'; }
+  if (factRow.style.display === 'none') {
+    factRow.style.display = 'table-row';
+    if(factList) factList.classList.add('show');
+    row.querySelector('.expand-icon').style.transform = 'rotate(90deg)';
+  } else {
+    factRow.style.display = 'none';
+    if(factList) factList.classList.remove('show');
+    row.querySelector('.expand-icon').style.transform = 'rotate(0deg)';
+  }
 };
 
 function parseDate(val) {
@@ -377,7 +386,6 @@ document.getElementById('exportExcelBtn').onclick = () => {
   });
   if (!filtered.length) { alert('Нет данных за период'); return; }
   
-  // Создаем workbook
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(filtered);
   XLSX.utils.book_append_sheet(wb, ws, 'Данные');
@@ -394,12 +402,16 @@ document.getElementById('exportBtn').onclick = () => {
     const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
     const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
     const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
-    const htmlMail = item.mails.map(m => `<tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;"><td>▶ ${m.email}</td><td>${m.count}</td><td style="color:#94a3b8;font-size:12px;">Нажмите</td></tr><tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>`).join('');
+    const htmlMail = item.mails.map(m => {
+      const omsuHtml = m.omsus.length > 0 ? `<div class="omsu-list">${m.omsus.map(o => `<span class="omsu-tag">${o}</span>`).join('')}</div>` : '-';
+      const factsHtml = m.facts.length > 0 ? `<div class="fact-list" style="display:block;"><strong>📋 Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div>` : '-';
+      return `<tr><td>${m.email}<br><small>${omsuHtml}</small></td><td>${m.count}</td><td>${factsHtml}</td></tr>`;
+    }).join('');
     const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
-    contentHtml += `<div class="tab-content${i===0?' active':''}" id="tab-${i}"><div class="metrics-row"><div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div><div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div><div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div><div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div></div><div class="dashboard-grid"><div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div><div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div><div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div><div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div><div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div></div></div>`;
+    contentHtml += `<div class="tab-content${i===0?' active':''}" id="tab-${i}"><div class="metrics-row"><div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div><div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div><div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div><div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div></div><div class="dashboard-grid"><div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div><div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div><div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div><div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div><div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div></div></div>`;
   });
   tabsHtml += '</div>'; contentHtml += '</div>';
-  const js = `function switchTab(idx){document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',i===idx));}window.toggleFacts=function(row){const factRow=row.nextElementSibling;const factList=factRow.querySelector('.fact-list');if(factRow.style.display==='none'){factRow.style.display='table-row';if(factList)factList.classList.add('show');row.querySelector('.expand-icon').style.transform='rotate(90deg)';}else{factRow.style.display='none';if(factList)factList.classList.remove('show');row.querySelector('.expand-icon').style.transform='rotate(0deg)';}};`;
+  const js = `function switchTab(idx){document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',i===idx));}`;
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Экспорт Дашборда</title>${css}</head><body style="margin:20px;background:#0b1120;color:#f1f5f9;font-family:sans-serif;"><h2>📊 Дашборд обращений</h2><p>Период: ${currentPeriods.start} - ${currentPeriods.end}</p>${tabsHtml}${contentHtml}<script>${js}<\/script></body></html>`;
   const blob = new Blob([html], {type:'text/html'});
   const a = document.createElement('a');
