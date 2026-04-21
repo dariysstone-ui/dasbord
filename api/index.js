@@ -6,23 +6,17 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Функция для повторных попыток при ошибках 503/429
   async function fetchWithRetry(url, retries = 3, delay = 1000) {
     for (let i = 0; i < retries; i++) {
       try {
         const response = await fetch(url);
-        
         if (response.ok) return response;
-        
-        // Для 503 (Service Unavailable) и 429 (Too Many Requests) делаем retry
         if (response.status === 503 || response.status === 429) {
-          const waitTime = delay * Math.pow(2, i); // Экспоненциальная задержка
+          const waitTime = delay * Math.pow(2, i);
           console.log(`Retry ${i + 1}/${retries} after ${waitTime}ms (status: ${response.status})`);
           await new Promise(r => setTimeout(r, waitTime));
           continue;
         }
-        
-        // Для других ошибок выбрасываем сразу
         const errorText = await response.text();
         throw new Error(`Google Sheets API error ${response.status}: ${errorText.substring(0, 200)}`);
       } catch (error) {
@@ -44,58 +38,35 @@ export default async function handler(req, res) {
     const API_KEY = process.env.GOOGLE_API_KEY;
     
     if (!SHEET_ID || !API_KEY) {
-      return res.status(500).json({ 
-        error: 'Не настроены переменные окружения',
-        hasSheetId: !!SHEET_ID,
-        hasApiKey: !!API_KEY
-      });
+      return res.status(500).json({ error: 'Не настроены переменные окружения', hasSheetId: !!SHEET_ID, hasApiKey: !!API_KEY });
     }
 
-    // Получаем метаданные таблицы чтобы узнать имя листа
     const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?key=${API_KEY}`;
     const metaResponse = await fetchWithRetry(metaUrl);
-    
-    if (!metaResponse.ok) {
-      throw new Error(`Ошибка метаданных: ${metaResponse.status}`);
-    }
+    if (!metaResponse.ok) throw new Error(`Ошибка метаданных: ${metaResponse.status}`);
     
     const metadata = await metaResponse.json();
     const sheetName = metadata.sheets?.[0]?.properties?.title || 'Лист1';
     const RANGE = `${sheetName}!A:Z`;
 
-    // Загрузка данных из Google Sheets с retry
-    console.log('Fetching data from Google Sheets...');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
     const response = await fetchWithRetry(url);
-    
     const data = await response.json();
     
     if (!data.values || data.values.length < 2) {
-      return res.status(400).json({ 
-        error: 'Таблица пуста или содержит только заголовки',
-        rowCount: data.values?.length || 0
-      });
+      return res.status(400).json({ error: 'Таблица пуста или содержит только заголовки', rowCount: data.values?.length || 0 });
     }
 
-    // Парсинг строк в объекты
     const headers = data.values[0].map(h => String(h || '').trim());
     const rows = data.values.slice(1).map((row) => {
       const obj = {};
-      headers.forEach((h, i) => {
-        obj[h] = String(row[i] || '').trim();
-      });
+      headers.forEach((h, i) => { obj[h] = String(row[i] || '').trim(); });
       return obj;
     });
 
-    console.log(`Parsed ${rows.length} rows from Google Sheets`);
-
-    // Вспомогательные функции
     const parseDate = (val) => {
       if (!val) return null;
-      let d;
-      if (val instanceof Date) d = val;
-      else if (typeof val === 'number') d = new Date((val - 25569) * 86400000);
-      else d = new Date(val);
+      let d = val instanceof Date ? val : new Date(val);
       return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
     };
 
@@ -109,6 +80,7 @@ export default async function handler(req, res) {
       });
     };
 
+    // === ОБНОВЛЕННАЯ АГРЕГАЦИЯ ДЛЯ GOOGLE SHEETS ===
     const aggregateData = (data) => {
       const groups = {};
       data.forEach(row => {
@@ -117,22 +89,26 @@ export default async function handler(req, res) {
         groups[sg].total++;
 
         const sub = (row['Подтема'] || '').trim() || 'Нет';
-        groups[sg].sub[sub] = (groups[sg].sub[sub] || 0) + 1;
+        // Sub теперь объект { count, facts }
+        if (!groups[sg].sub[sub]) groups[sg].sub[sub] = { count: 0, facts: {} };
+        groups[sg].sub[sub].count++;
+        
+        const fact = (row['Факт'] || '').trim() || 'Нет';
+        groups[sg].sub[sub].facts[fact] = (groups[sg].sub[sub].facts[fact] || 0) + 1;
 
         const omsu = (row['ОМСУ'] || '').trim() || 'Нет';
         if (!groups[sg].omsu[omsu]) groups[sg].omsu[omsu] = { c: 0, subs: {} };
         groups[sg].omsu[omsu].c++;
         groups[sg].omsu[omsu].subs[sub] = (groups[sg].omsu[omsu].subs[sub] || 0) + 1;
 
-        const fact = (row['Факт'] || '').trim() || 'Нет';
-        groups[sg].fact[fact] = (groups[sg].fact[fact] || 0) + 1;
+        if (!groups[sg].fact[fact]) groups[sg].fact[fact] = { count: 0 };
+        groups[sg].fact[fact].count++;
 
         const mail = ((row['Почта заявителя'] || '').trim()).toLowerCase();
         if (mail && mail !== 'нет') {
           if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {}, omsus: new Set() };
           groups[sg].mail[mail].c++;
           groups[sg].mail[mail].facts[fact] = (groups[sg].mail[mail].facts[fact] || 0) + 1;
-          // Собираем ОМСУ для каждого заявителя
           if (omsu && omsu !== 'Нет') groups[sg].mail[mail].omsus.add(omsu);
         }
 
@@ -153,18 +129,26 @@ export default async function handler(req, res) {
         const c = comp[name] || { total: 0, sub: {}, omsu: {}, fact: {}, mail: {}, addr: {} };
         const entry = { name, total: m.total, compTotal: c.total, subs: [], facts: [], omsus: [], mails: [], addrs: [] };
 
-        Object.entries(m.sub).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([k,v]) => {
-          const cv = c.sub[k] || 0;
-          const diff = v - cv;
-          const pct = cv === 0 ? (v>0?100:0) : Math.round((diff/cv)*100);
-          entry.subs.push({ name: k, count: v, pctGroup: Math.round((v/m.total)*100), dynPct: pct, dynAbs: diff });
+        // Подтемы с фактами
+        Object.entries(m.sub).sort((a,b)=>b[1].count-a[1].count).slice(0,5).forEach(([k,v]) => {
+          const cv = c.sub[k]?.count || 0;
+          const diff = v.count - cv;
+          const pct = cv === 0 ? (v.count>0?100:0) : Math.round((diff/cv)*100);
+          entry.subs.push({ 
+            name: k, 
+            count: v.count, 
+            pctGroup: Math.round((v.count/m.total)*100), 
+            dynPct: pct, 
+            dynAbs: diff,
+            facts: Object.entries(v.facts).sort((a,b)=>b[1]-a[1])
+          });
         });
 
-        Object.entries(m.fact).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([k,v]) => {
-          const cv = c.fact[k] || 0;
-          const diff = v - cv;
-          const pct = cv === 0 ? (v>0?100:0) : Math.round((diff/cv)*100);
-          entry.facts.push({ name: k, count: v, dynPct: pct, dynAbs: diff });
+        Object.entries(m.fact).sort((a,b)=>b[1].count-a[1].count).slice(0,5).forEach(([k,v]) => {
+          const cv = c.fact[k]?.count || 0;
+          const diff = v.count - cv;
+          const pct = cv === 0 ? (v.count>0?100:0) : Math.round((diff/cv)*100);
+          entry.facts.push({ name: k, count: v.count, dynPct: pct, dynAbs: diff });
         });
 
         Object.entries(m.omsu).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
@@ -178,14 +162,8 @@ export default async function handler(req, res) {
           entry.omsus.push({ name: k, count: d.c, dynPct: pct, dynAbs: diff, mainSub: mainSt, mainSubCnt: mainStCnt, mainSubPct: stPct });
         });
 
-        // Обработка заявителей с ОМСУ
         Object.entries(m.mail).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
-          entry.mails.push({ 
-            email: k, 
-            count: d.c, 
-            facts: Object.entries(d.facts).sort((a,b)=>b[1]-a[1]),
-            omsus: Array.from(d.omsus) // Массив ОМСУ для заявителя
-          });
+          entry.mails.push({ email: k, count: d.c, facts: Object.entries(d.facts).sort((a,b)=>b[1]-a[1]), omsus: Array.from(d.omsus) });
         });
 
         Object.entries(m.addr).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
@@ -201,11 +179,8 @@ export default async function handler(req, res) {
       return result.sort((a,b) => b.total - a.total);
     };
 
-    // Основная логика
     const mainData = filter(rows, start, end, omsuFilter);
     const compData = filter(rows, compStart, compEnd, omsuFilter);
-    
-    console.log(`Filtered: ${mainData.length} main, ${compData.length} comparison`);
     
     const statsMain = aggregateData(mainData);
     const statsComp = aggregateData(compData);
@@ -224,9 +199,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('API Error:', err);
-    return res.status(500).json({ 
-      error: err.message || 'Внутренняя ошибка сервера',
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+    return res.status(500).json({ error: err.message || 'Внутренняя ошибка сервера' });
   }
 }
