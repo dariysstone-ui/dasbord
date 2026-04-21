@@ -394,25 +394,85 @@ document.getElementById('exportExcelBtn').onclick = () => {
 
 document.getElementById('exportBtn').onclick = () => {
   if (!currentData) return;
+  
   const css = document.querySelector('style').outerHTML;
+  
   let tabsHtml = '<div class="tabs">';
   let contentHtml = '<div id="tabsContent">';
+  
   currentData.forEach((item, i) => {
     tabsHtml += `<button class="tab-btn${i===0?' active':''}" onclick="switchTab(${i})">${item.name} (${item.total})</button>`;
+    
     const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
     const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
     const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
+    
+    // ГЕНЕРАЦИЯ ТАБЛИЦЫ ЗАЯВИТЕЛЕЙ С АККОРДЕОНОМ
     const htmlMail = item.mails.map(m => {
-      const omsuHtml = m.omsus.length > 0 ? `<div class="omsu-list">${m.omsus.map(o => `<span class="omsu-tag">${o}</span>`).join('')}</div>` : '-';
-      const factsHtml = m.facts.length > 0 ? `<div class="fact-list" style="display:block;"><strong>📋 Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div>` : '-';
-      return `<tr><td>${m.email}<br><small>${omsuHtml}</small></td><td>${m.count}</td><td>${factsHtml}</td></tr>`;
+      const omsuText = m.omsus.length > 0 ? m.omsus.join(', ') : '-';
+      return `
+        <tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;">
+          <td style="max-width:250px;"><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${m.email}<br><small>${omsuText}</small></td>
+          <td style="text-align:center;font-weight:bold;">${m.count}</td>
+          <td style="color:#94a3b8;font-size:12px;">Нажмите для деталей</td>
+        </tr>
+        <tr style="display:none;"><td colspan="3" style="padding:0 8px 8px 8px;">
+          <div class="fact-list" style="display:none;margin-top:8px;background:#0f172a;border-radius:8px;padding:12px;border:1px solid #334155;">
+            <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты обращений:</strong>
+            ${m.facts.map(f => `<div class="fact-item" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #334155;"><span style="flex:1;margin-right:12px;">${f[0]}</span><span style="background:#1e293b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;white-space:nowrap;text-align:center;min-width:30px;">${f[1]}</span></div>`).join('')}
+          </div>
+        </td></tr>
+      `;
     }).join('');
+    
     const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
-    contentHtml += `<div class="tab-content${i===0?' active':''}" id="tab-${i}"><div class="metrics-row"><div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div><div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div><div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div><div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div></div><div class="dashboard-grid"><div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div><div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div><div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div><div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div><div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div></div></div>`;
+    
+    contentHtml += `
+      <div class="tab-content${i===0?' active':''}" id="tab-${i}">
+        <div class="metrics-row">
+          <div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div>
+          <div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div>
+          <div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div>
+          <div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
+          <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
+          <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
+          <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th style="text-align:center;">Кол-во</th><th>Детали</th></tr>${htmlMail}</table></div>
+          <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
+        </div>
+      </div>`;
   });
-  tabsHtml += '</div>'; contentHtml += '</div>';
-  const js = `function switchTab(idx){document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));document.querySelectorAll('.tab-content').forEach((c,i)=>c.classList.toggle('active',i===idx));}`;
+  
+  tabsHtml += '</div>';
+  contentHtml += '</div>';
+  
+  // Скрипты для работы вкладок и аккордеона в экспорте
+  const js = `
+    function switchTab(idx) {
+      document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+      document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
+    }
+    window.toggleFacts = function(row) {
+      row.classList.toggle('expanded');
+      const factRow = row.nextElementSibling;
+      const factList = factRow.querySelector('.fact-list');
+      const icon = row.querySelector('.expand-icon');
+      if (factRow.style.display === 'none') {
+        factRow.style.display = 'table-row';
+        if(factList) factList.style.display = 'block';
+        if(icon) icon.style.transform = 'rotate(90deg)';
+      } else {
+        factRow.style.display = 'none';
+        if(factList) factList.style.display = 'none';
+        if(icon) icon.style.transform = 'rotate(0deg)';
+      }
+    };
+  `;
+  
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Экспорт Дашборда</title>${css}</head><body style="margin:20px;background:#0b1120;color:#f1f5f9;font-family:sans-serif;"><h2>📊 Дашборд обращений</h2><p>Период: ${currentPeriods.start} - ${currentPeriods.end}</p>${tabsHtml}${contentHtml}<script>${js}<\/script></body></html>`;
+  
   const blob = new Blob([html], {type:'text/html'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
