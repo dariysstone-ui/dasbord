@@ -52,8 +52,6 @@
     }
     button:hover { opacity: 0.9; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    /* Лоадер */
     .loader-overlay {
       display: none;
       position: fixed;
@@ -66,20 +64,14 @@
     }
     .loader-overlay.active { display: flex; }
     .loader-spinner {
-      width: 50px;
-      height: 50px;
+      width: 50px; height: 50px;
       border: 4px solid var(--border);
       border-top: 4px solid var(--accent);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .loader-text {
-      margin-top: 15px;
-      color: var(--text-main);
-      font-size: 16px;
-    }
-    
+    .loader-text { margin-top: 15px; color: var(--text-main); font-size: 16px; }
     .tabs { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; }
     .tab-btn {
       background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted);
@@ -113,62 +105,24 @@
     .omsu-option:hover { background: rgba(255,255,255,0.05); }
     .omsu-option input { width: auto; margin: 0; }
     .clear-filter { background: var(--danger); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
-    
-    /* Стили для раскрывающихся фактов */
     .clickable-row { cursor: pointer; transition: background 0.2s; }
     .clickable-row:hover { background: rgba(255,255,255,0.05); }
     .expand-icon { display: inline-block; transition: transform 0.3s; margin-right: 8px; font-size: 12px; }
     .expanded .expand-icon { transform: rotate(90deg); }
-    .fact-list { 
-      display: none; 
-      margin-top: 8px; 
-      background: #0f172a; 
-      border-radius: 8px; 
-      padding: 12px;
-      border: 1px solid var(--border);
-    }
+    .fact-list { display: none; margin-top: 8px; background: #0f172a; border-radius: 8px; padding: 12px; border: 1px solid var(--border); }
     .fact-list.show { display: block; }
-    .fact-item { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: flex-start;
-      padding: 6px 0; 
-      border-bottom: 1px solid #334155;
-      line-height: 1.4;
-    }
+    .fact-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #334155; line-height: 1.4; }
     .fact-item:last-child { border-bottom: none; }
     .fact-name { flex: 1; margin-right: 12px; }
-    .fact-count { 
-      background: var(--bg-panel); 
-      padding: 2px 8px; 
-      border-radius: 12px; 
-      font-size: 11px; 
-      font-weight: bold;
-      white-space: nowrap;
-      min-width: 30px;
-      text-align: center;
-    }
-    .omsu-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 4px;
-    }
-    .omsu-tag {
-      background: var(--bg-panel);
-      color: var(--text-muted);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10px;
-      border: 1px solid var(--border);
-    }
+    .fact-count { background: var(--bg-panel); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; white-space: nowrap; min-width: 30px; text-align: center; }
+    .omsu-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .omsu-tag { background: var(--bg-panel); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 10px; border: 1px solid var(--border); }
   </style>
 </head>
 <body>
-<!-- Лоадер -->
 <div class="loader-overlay" id="loaderOverlay">
   <div class="loader-spinner"></div>
-  <div class="loader-text" id="loaderText">Загрузка данных...</div>
+  <div class="loader-text" id="loaderText">Подключение к Google Sheets...</div>
 </div>
 
 <div class="container">
@@ -209,11 +163,9 @@ function showLoader(text) {
   document.getElementById('loaderText').textContent = text || 'Загрузка данных...';
   document.getElementById('loaderOverlay').classList.add('active');
 }
-
 function hideLoader() {
   document.getElementById('loaderOverlay').classList.remove('active');
 }
-
 function initOmsuDropdown() {
   const dropdown = document.getElementById('omsuDropdown');
   dropdown.innerHTML = OMSU_LIST.sort().map(omsu => `
@@ -295,29 +247,35 @@ function renderDashboard(data) {
     div.className = 'tab-content' + (i===0?' active':'');
     div.id = `tab-${i}`;
     
-    const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
+    // === ПОДТЕМЫ С РАСКРЫВАЮЩИМИСЯ ФАКТАМИ ===
+    const htmlSub = item.subs.map((s, idx) => `
+      <tr class="clickable-row" onclick="toggleSubFacts(this, ${i}, ${idx})" style="cursor:pointer;">
+        <td><span class="expand-icon" id="sub-icon-${i}-${idx}">▶</span>${s.name}</td>
+        <td>${s.count}</td>
+        <td>${s.pctGroup}%</td>
+        <td>${renderDyn(s.dynPct, s.dynAbs)}</td>
+      </tr>
+      <tr style="display:none;" id="sub-row-${i}-${idx}">
+        <td colspan="4" style="padding:0 8px 8px 8px;">
+          <div class="fact-list" id="sub-list-${i}-${idx}">
+            <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты в подтеме:</strong>
+            ${s.facts.map(f => `<div class="fact-item"><span class="fact-name">${f[0]}</span><span class="fact-count">${f[1]}</span></div>`).join('')}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    
     const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
     const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
     
-    // Генерация таблицы заявителей с ОМСУ и читаемыми фактами
-    const htmlMail = item.mails.map(m => {
-      const omsuHtml = m.omsus.length > 0 
-        ? `<div class="omsu-list">${m.omsus.map(o => `<span class="omsu-tag">${o}</span>`).join('')}</div>`
-        : '<span style="color:#666;font-size:12px;">-</span>';
-      
-      const factsHtml = m.facts.length > 0
-        ? `<div class="fact-list"><strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты обращений:</strong>${m.facts.map(f => `<div class="fact-item"><span class="fact-name">${f[0]}</span><span class="fact-count">${f[1]}</span></div>`).join('')}</div>`
-        : '<span style="color:#666;font-size:12px;">Нет данных</span>';
-      
-      return `
-        <tr class="clickable-row" onclick="toggleFacts(this)">
-          <td style="max-width:250px;"><span class="expand-icon">▶</span><span style="word-break:break-word;">${m.email}</span>${omsuHtml}</td>
-          <td style="text-align:center;font-weight:bold;">${m.count}</td>
-          <td style="color:#94a3b8;font-size:12px;">Нажмите для деталей</td>
-        </tr>
-        <tr style="display:none;"><td colspan="3" style="padding:0 8px 8px 8px;">${factsHtml}</td></tr>
-      `;
-    }).join('');
+    const htmlMail = item.mails.map(m => `
+      <tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;">
+        <td style="max-width:250px;"><span class="expand-icon">▶</span>${m.email}<br><small>${m.omsus.length > 0 ? m.omsus.join(', ') : '-'}</small></td>
+        <td style="text-align:center;font-weight:bold;">${m.count}</td>
+        <td style="color:#94a3b8;font-size:12px;">Нажмите</td>
+      </tr>
+      <tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>
+    `).join('');
     
     const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
     
@@ -332,7 +290,7 @@ function renderDashboard(data) {
         <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
         <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
         <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
-        <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th style="text-align:center;">Кол-во</th><th>Детали</th></tr>${htmlMail}</table></div>
+        <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div>
         <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
       </div>
     `;
@@ -353,6 +311,23 @@ function switchTab(idx) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
   document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
 }
+
+// === ФУНКЦИЯ ДЛЯ ПОДТЕМ ===
+window.toggleSubFacts = function(row, groupIdx, subIdx) {
+  row.classList.toggle('expanded');
+  const factRow = document.getElementById(`sub-row-${groupIdx}-${subIdx}`);
+  const factList = document.getElementById(`sub-list-${groupIdx}-${subIdx}`);
+  const icon = document.getElementById(`sub-icon-${groupIdx}-${subIdx}`);
+  if (factRow.style.display === 'none') {
+    factRow.style.display = 'table-row';
+    if(factList) factList.classList.add('show');
+    if(icon) icon.style.transform = 'rotate(90deg)';
+  } else {
+    factRow.style.display = 'none';
+    if(factList) factList.classList.remove('show');
+    if(icon) icon.style.transform = 'rotate(0deg)';
+  }
+};
 
 window.toggleFacts = function(row) {
   row.classList.toggle('expanded');
@@ -385,7 +360,6 @@ document.getElementById('exportExcelBtn').onclick = () => {
     return d && d >= startDate && d <= endDate && (selectedOmsu.size === 0 || selectedOmsu.has((r['ОМСУ'] || '').trim()));
   });
   if (!filtered.length) { alert('Нет данных за период'); return; }
-  
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(filtered);
   XLSX.utils.book_append_sheet(wb, ws, 'Данные');
@@ -394,37 +368,31 @@ document.getElementById('exportExcelBtn').onclick = () => {
 
 document.getElementById('exportBtn').onclick = () => {
   if (!currentData) return;
-  
   const css = document.querySelector('style').outerHTML;
-  
   let tabsHtml = '<div class="tabs">';
   let contentHtml = '<div id="tabsContent">';
   
   currentData.forEach((item, i) => {
     tabsHtml += `<button class="tab-btn${i===0?' active':''}" onclick="switchTab(${i})">${item.name} (${item.total})</button>`;
     
-    const htmlSub = item.subs.map(s => `<tr><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${renderDyn(s.dynPct, s.dynAbs)}</td></tr>`).join('');
+    const htmlSub = item.subs.map((s, idx) => `
+      <tr class="clickable-row" onclick="toggleSubFacts(this, ${i}, ${idx})" style="cursor:pointer;">
+        <td><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${s.name}</td>
+        <td>${s.count}</td>
+        <td>${s.pctGroup}%</td>
+        <td>${renderDyn(s.dynPct, s.dynAbs)}</td>
+      </tr>
+      <tr style="display:none;"><td colspan="4" style="padding:0 8px 8px 8px;">
+        <div class="fact-list" style="display:none;margin-top:8px;background:#0f172a;border-radius:8px;padding:12px;border:1px solid #334155;">
+          <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты в подтеме:</strong>
+          ${s.facts.map(f => `<div class="fact-item" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #334155;"><span style="flex:1;margin-right:12px;">${f[0]}</span><span style="background:#1e293b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;white-space:nowrap;text-align:center;min-width:30px;">${f[1]}</span></div>`).join('')}
+        </div>
+      </td></tr>
+    `).join('');
+    
     const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
     const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
-    
-    // ГЕНЕРАЦИЯ ТАБЛИЦЫ ЗАЯВИТЕЛЕЙ С АККОРДЕОНОМ
-    const htmlMail = item.mails.map(m => {
-      const omsuText = m.omsus.length > 0 ? m.omsus.join(', ') : '-';
-      return `
-        <tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;">
-          <td style="max-width:250px;"><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${m.email}<br><small>${omsuText}</small></td>
-          <td style="text-align:center;font-weight:bold;">${m.count}</td>
-          <td style="color:#94a3b8;font-size:12px;">Нажмите для деталей</td>
-        </tr>
-        <tr style="display:none;"><td colspan="3" style="padding:0 8px 8px 8px;">
-          <div class="fact-list" style="display:none;margin-top:8px;background:#0f172a;border-radius:8px;padding:12px;border:1px solid #334155;">
-            <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты обращений:</strong>
-            ${m.facts.map(f => `<div class="fact-item" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #334155;"><span style="flex:1;margin-right:12px;">${f[0]}</span><span style="background:#1e293b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;white-space:nowrap;text-align:center;min-width:30px;">${f[1]}</span></div>`).join('')}
-          </div>
-        </td></tr>
-      `;
-    }).join('');
-    
+    const htmlMail = item.mails.map(m => `<tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;"><td><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${m.email}</td><td>${m.count}</td><td style="color:#94a3b8;font-size:12px;">Нажмите</td></tr><tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>`).join('');
     const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
     
     contentHtml += `
@@ -439,16 +407,14 @@ document.getElementById('exportBtn').onclick = () => {
           <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
           <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
           <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
-          <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email / ОМСУ</th><th style="text-align:center;">Кол-во</th><th>Детали</th></tr>${htmlMail}</table></div>
+          <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div>
           <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
         </div>
       </div>`;
   });
   
-  tabsHtml += '</div>';
-  contentHtml += '</div>';
+  tabsHtml += '</div>'; contentHtml += '</div>';
   
-  // Скрипты для работы вкладок и аккордеона в экспорте
   const js = `
     function switchTab(idx) {
       document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
@@ -469,10 +435,24 @@ document.getElementById('exportBtn').onclick = () => {
         if(icon) icon.style.transform = 'rotate(0deg)';
       }
     };
+    window.toggleSubFacts = function(row, groupIdx, subIdx) {
+      row.classList.toggle('expanded');
+      const factRow = row.nextElementSibling;
+      const factList = factRow.querySelector('.fact-list');
+      const icon = row.querySelector('.expand-icon');
+      if (factRow.style.display === 'none') {
+        factRow.style.display = 'table-row';
+        if(factList) factList.style.display = 'block';
+        if(icon) icon.style.transform = 'rotate(90deg)';
+      } else {
+        factRow.style.display = 'none';
+        if(factList) factList.style.display = 'none';
+        if(icon) icon.style.transform = 'rotate(0deg)';
+      }
+    };
   `;
   
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Экспорт Дашборда</title>${css}</head><body style="margin:20px;background:#0b1120;color:#f1f5f9;font-family:sans-serif;"><h2>📊 Дашборд обращений</h2><p>Период: ${currentPeriods.start} - ${currentPeriods.end}</p>${tabsHtml}${contentHtml}<script>${js}<\/script></body></html>`;
-  
   const blob = new Blob([html], {type:'text/html'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
