@@ -6,6 +6,33 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Функция для повторных попыток при ошибках 503/429
+  async function fetchWithRetry(url, retries = 3, delay = 1000) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url);
+        
+        if (response.ok) return response;
+        
+        // Для 503 (Service Unavailable) и 429 (Too Many Requests) делаем retry
+        if (response.status === 503 || response.status === 429) {
+          const waitTime = delay * Math.pow(2, i); // Экспоненциальная задержка
+          console.log(`Retry ${i + 1}/${retries} after ${waitTime}ms (status: ${response.status})`);
+          await new Promise(r => setTimeout(r, waitTime));
+          continue;
+        }
+        
+        // Для других ошибок выбрасываем сразу
+        const errorText = await response.text();
+        throw new Error(`Google Sheets API error ${response.status}: ${errorText.substring(0, 200)}`);
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        console.log(`Request failed, retrying (${i + 1}/${retries}):`, error.message);
+        await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+      }
+    }
+  }
+
   try {
     const { start, end, compStart, compEnd, omsuFilter = [] } = req.body;
     
@@ -26,7 +53,7 @@ export default async function handler(req, res) {
 
     // Получаем метаданные таблицы чтобы узнать имя листа
     const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?key=${API_KEY}`;
-    const metaResponse = await fetch(metaUrl);
+    const metaResponse = await fetchWithRetry(metaUrl);
     
     if (!metaResponse.ok) {
       throw new Error(`Ошибка метаданных: ${metaResponse.status}`);
@@ -36,13 +63,10 @@ export default async function handler(req, res) {
     const sheetName = metadata.sheets?.[0]?.properties?.title || 'Лист1';
     const RANGE = `${sheetName}!A:Z`;
 
-    // Загрузка данных из Google Sheets
+    // Загрузка данных из Google Sheets с retry
+    console.log('Fetching data from Google Sheets...');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error(`Ошибка Google Sheets API: ${response.status}`);
-    }
+    const response = await fetchWithRetry(url);
     
     const data = await response.json();
     
@@ -62,6 +86,8 @@ export default async function handler(req, res) {
       });
       return obj;
     });
+
+    console.log(`Parsed ${rows.length} rows from Google Sheets`);
 
     // Вспомогательные функции
     const parseDate = (val) => {
@@ -103,9 +129,11 @@ export default async function handler(req, res) {
 
         const mail = ((row['Почта заявителя'] || '').trim()).toLowerCase();
         if (mail && mail !== 'нет') {
-          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {} };
+          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {}, omsus: new Set() };
           groups[sg].mail[mail].c++;
           groups[sg].mail[mail].facts[fact] = (groups[sg].mail[mail].facts[fact] || 0) + 1;
+          // Собираем ОМСУ для каждого заявителя
+          if (omsu && omsu !== 'Нет') groups[sg].mail[mail].omsus.add(omsu);
         }
 
         const fullAddr = (row['Адрес'] || '').trim();
@@ -150,8 +178,14 @@ export default async function handler(req, res) {
           entry.omsus.push({ name: k, count: d.c, dynPct: pct, dynAbs: diff, mainSub: mainSt, mainSubCnt: mainStCnt, mainSubPct: stPct });
         });
 
+        // Обработка заявителей с ОМСУ
         Object.entries(m.mail).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
-          entry.mails.push({ email: k, count: d.c, facts: Object.entries(d.facts).sort((a,b)=>b[1]-a[1]) });
+          entry.mails.push({ 
+            email: k, 
+            count: d.c, 
+            facts: Object.entries(d.facts).sort((a,b)=>b[1]-a[1]),
+            omsus: Array.from(d.omsus) // Массив ОМСУ для заявителя
+          });
         });
 
         Object.entries(m.addr).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
@@ -171,6 +205,8 @@ export default async function handler(req, res) {
     const mainData = filter(rows, start, end, omsuFilter);
     const compData = filter(rows, compStart, compEnd, omsuFilter);
     
+    console.log(`Filtered: ${mainData.length} main, ${compData.length} comparison`);
+    
     const statsMain = aggregateData(mainData);
     const statsComp = aggregateData(compData);
     
@@ -189,7 +225,8 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('API Error:', err);
     return res.status(500).json({ 
-      error: err.message || 'Внутренняя ошибка сервера'
+      error: err.message || 'Внутренняя ошибка сервера',
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
 }
