@@ -158,7 +158,13 @@
       <div><label>Сравнение: по</label><input type="date" id="compEndDate"></div>
       <div class="omf">
         <label>Фильтр по ОМСУ</label>
-        <div class="oms" onclick="toggleOmsu(event)"><span id="omsP">Выберите ОМСУ</span><span style="opacity:.4;font-size:10px">▼</span></div>
+        <div class="oms" onclick="toggleOmsu(event)">
+          <span id="omsP">Выберите ОМСУ</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="omsClearBtn" onclick="clearOmsu(event)" style="display:none;background:rgba(244,63,94,.2);color:#f43f5e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">✕</span>
+            <span style="opacity:.4;font-size:10px">▼</span>
+          </span>
+        </div>
         <div class="omd" id="omsDrop"></div>
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px;grid-column:span 1">
@@ -171,6 +177,7 @@
       <div class="pb"><div class="pf" id="pf"></div></div>
     </div>
     <div class="abar" id="abar" style="display:none">
+      <button class="btn btn-s btn-sm" id="expXls">📥 Выгрузить в Excel</button>
       <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
       <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
     </div>
@@ -188,7 +195,7 @@
 // ═══════════════════════════════════
 const OMSU_LIST=['Долгопрудный','Подольск','Наро-Фоминский','Щелково','Павлово-Посадский','Люберцы','Истра','Мытищи','Домодедово','Химки','Электросталь','Красногорск','Жуковский','Ленинский','Реутов','Дмитровский','Котельники','Богородский','Солнечногорск','Ступино','Егорьевск','Луховицы','Балашиха','Воскресенск','Клин','Одинцовский','Дубна','Сергиево-Посадский','Раменский','Лобня','Рузский','Серпухов','Фрязино','Королёв','Пушкинский','Талдомский','Кашира','Коломна','Черноголовка','Лосино-Петровский','Чехов','Зарайск','Серебряные Пруды','Шатура','Власиха','Шаховская','Лыткарино','Орехово-Зуевский','Можайский','Краснознаменск','Волоколамский','Лотошино','Бронницы','Звездный городок','Молодежный','Восход'];
 let selOmsu=new Set(), curData=null, curPer=null;
-let renderedTabs=new Set(), charts={}, lazyD=null, lazyDy=null;
+let renderedTabs=new Set(), charts={}, lazyD=null, lazyDy=null, lazyDyComp=null;
 
 
 // ═══════════════════════════════════
@@ -211,7 +218,17 @@ function initOmsu() {
 }
 function toggleOmsu(e){e.stopPropagation();$('omsDrop').classList.toggle('show')}
 function togO(o,e){e.stopPropagation();const c=$(`o-${o.replace(/[\s']+/g,'-')}`);if(c.checked)selOmsu.add(o);else selOmsu.delete(o);updO()}
-function updO(){const n=selOmsu.size;$('omsP').textContent=n===0?'Выберите ОМСУ':n===1?[...selOmsu][0]:`Выбрано: ${n}`}
+function updO(){
+  const n=selOmsu.size;
+  $('omsP').textContent=n===0?'Выберите ОМСУ':n===1?[...selOmsu][0]:`Выбрано: ${n}`;
+  const cb=$('omsClearBtn');if(cb)cb.style.display=n>0?'':'none';
+}
+window.clearOmsu=function(e){
+  e.stopPropagation();
+  selOmsu.clear();
+  document.querySelectorAll('.omd input[type=checkbox]').forEach(c=>c.checked=false);
+  updO();
+};
 document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
 
 document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
@@ -386,22 +403,95 @@ function renderTab(item,idx,daily){
     </div>
     <div style="margin-bottom:16px"><div class="sb"><div class="st"><span>📅 Динамика по дням</span></div><div class="cc"><canvas id="${cid}"></canvas></div></div></div>
     <div class="dg">
-      <div class="sb"><div class="st"><span>📌 Подтемы (${item.subs.length})</span></div><div class="pg-wrap">${mkTable([{l:'Подтема',t:'str'},{l:'Кол-во'},{l:'%'},{l:'Динамика'}],subR)}${subMoreBtn}</div></div>
-      <div class="sb"><div class="st"><span>⚠️ Факты (${item.facts.length})</span></div><div class="pg-wrap">${mkTable([{l:'Факт',t:'str'},{l:'Кол-во'},{l:'Динамика'}],fct.r)}${fct.b}</div></div>
-      <div class="sb"><div class="st"><span>🏢 ОМСУ (${item.omsus.length})</span></div><div class="pg-wrap">${mkTable([{l:'ОМСУ',t:'str'},{l:'Кол-во'},{l:'Динамика'},{l:'Гл. подтема',t:'str'}],oms.r)}${oms.b}</div></div>
-      <div class="sb"><div class="st"><span>✉️ Заявители (${item.mails.length})</span></div><div class="pg-wrap">${mkTable([{l:'Email / ОМСУ',t:'str'},{l:'Кол-во'}],mailRFull)}${mailMoreBtn}</div></div>
-      <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Адреса (${item.addrs.length})</span></div><div class="pg-wrap">${mkTable([{l:'Адрес',t:'str'},{l:'Кол-во'},{l:'Гл. подтема',t:'str'}],adr.r)}${adr.b}</div></div>
+      <div class="sb"><div class="st"><span>📌 Топ-10 Подтем из ${item.subs.length}</span></div><div class="pg-wrap">${mkTable([{l:'Подтема',t:'str'},{l:'Кол-во'},{l:'%'},{l:'Динамика'}],subR)}${subMoreBtn}</div></div>
+      <div class="sb"><div class="st"><span>⚠️ Топ-10 Фактов из ${item.facts.length}</span></div><div class="pg-wrap">${mkTable([{l:'Факт',t:'str'},{l:'Кол-во'},{l:'Динамика'}],fct.r)}${fct.b}</div></div>
+      <div class="sb"><div class="st"><span>🏢 Топ-10 ОМСУ из ${item.omsus.length}</span></div><div class="pg-wrap">${mkTable([{l:'ОМСУ',t:'str'},{l:'Кол-во'},{l:'Динамика'},{l:'Гл. подтема',t:'str'}],oms.r)}${oms.b}</div></div>
+      <div class="sb"><div class="st"><span>✉️ Топ-10 Заявителей из ${item.mails.length}</span></div><div class="pg-wrap">${mkTable([{l:'Email / ОМСУ',t:'str'},{l:'Кол-во'}],mailRFull)}${mailMoreBtn}</div></div>
+      <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Топ-10 Адресов из ${item.addrs.length}</span></div><div class="pg-wrap">${mkTable([{l:'Адрес',t:'str'},{l:'Кол-во'},{l:'Гл. подтема',t:'str'}],adr.r)}${adr.b}</div></div>
     </div>`;
 
   setTimeout(()=>{
     const canvas=$(cid);if(!canvas)return;
     if(charts[cid])charts[cid].destroy();
-    const days=Object.keys(daily).sort(),vals=days.map(d=>daily[d]?.[item.name]||0);
+
+    // Main period days & values
+    const days=Object.keys(daily).sort();
+    const vals=days.map(d=>daily[d]?.[item.name]||0);
+
+    // Build top-1 subtopic per day from daily data
+    const topSubPerDay={}; // date -> {sub, count}
+    if(curPer&&lazyDy){
+      // We use the raw daily agg data stored in lazyDy
+      // lazyDy[date][sg] = count (already filtered to this sg by buildDaily on server)
+      // For subtopic per day we need to look into curPer data - use item.subs[0] as fallback
+    }
+
+    // Comparison period: shift comp dates to align with main for overlay
+    const compDays=Object.keys(lazyDyComp||{}).sort();
+    const compVals=days.map((_,i)=>{
+      const cd=compDays[i];
+      return cd?(lazyDyComp[cd]?.[item.name]||0):null;
+    });
+    const hasComp=compVals.some(v=>v!=null);
+
+    const datasets=[{
+      label:'Основной период',
+      data:vals,
+      borderColor:'#3b82f6',
+      backgroundColor:'rgba(59,130,246,.1)',
+      fill:true,tension:.4,
+      pointRadius:days.length>90?0:2,
+      pointHoverRadius:5,borderWidth:2.5,
+      order:1
+    }];
+    if(hasComp){
+      datasets.push({
+        label:'Период сравнения',
+        data:compVals,
+        borderColor:'rgba(148,163,184,.5)',
+        backgroundColor:'transparent',
+        fill:false,tension:.4,
+        pointRadius:0,pointHoverRadius:4,
+        borderWidth:1.5,borderDash:[4,3],
+        order:2
+      });
+    }
+
     charts[cid]=new Chart(canvas,{type:'line',
-      data:{labels:days,datasets:[{data:vals,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',fill:true,tension:.4,pointRadius:days.length>60?0:3,pointHoverRadius:5,borderWidth:2}]},
+      data:{labels:days,datasets},
       options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,.95)',borderColor:'#243044',borderWidth:1,titleColor:'#7a90b0',bodyColor:'#e2eaf6',callbacks:{label:t=>`Обращений: ${t.raw}`}}},
-        scales:{x:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',maxTicksLimit:12,font:{size:10}}},y:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}}}
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{
+            display:hasComp,
+            labels:{color:'#7a90b0',font:{size:10},boxWidth:12,padding:10}
+          },
+          tooltip:{
+            backgroundColor:'rgba(17,24,39,.95)',
+            borderColor:'#243044',borderWidth:1,
+            titleColor:'#7a90b0',bodyColor:'#e2eaf6',
+            callbacks:{
+              title:t=>{
+                const date=t[0]?.label||'';
+                const topSub=item.subs[0]?.name||'';
+                return[date, topSub?`Топ подтема: ${topSub}`:''].filter(Boolean);
+              },
+              label:t=>`${t.dataset.label}: ${t.raw??'-'}`
+            }
+          },
+          // Data labels: show values on points (only for short ranges)
+          datalabels: days.length<=31?{
+            display:ctx=>ctx.datasetIndex===0&&ctx.parsed.y>0,
+            color:'#7a90b0',font:{size:9},
+            anchor:'end',align:'top',offset:2,
+            formatter:v=>v>0?v:''
+          }:false
+        },
+        scales:{
+          x:{grid:{color:'rgba(36,48,68,.4)'},ticks:{color:'#4a607e',maxTicksLimit:14,font:{size:10}}},
+          y:{grid:{color:'rgba(36,48,68,.4)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}
+        }
+      }
     });
   },60);
 }
@@ -494,6 +584,7 @@ $('genBtn').onclick=async()=>{
     curData=json.data;
     curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu]};
     lazyDy=json.daily||{};
+    lazyDyComp=json.dailyComp||{};
 
     const mainCnt=(json.counts?.main||0).toLocaleString('ru');
     const compCnt=(json.counts?.comp||0).toLocaleString('ru');
@@ -521,6 +612,57 @@ $('genBtn').onclick=async()=>{
 // EXPORT HTML
 // ═══════════════════════════════════
 
+$('expXls').onclick=async()=>{
+  if(!curData||!curPer){alert('Нет данных');return;}
+  const btn=$('expXls');
+  btn.disabled=true;btn.textContent='⏳ Подготовка...';
+  try{
+    // Load SheetJS dynamically
+    if(typeof XLSX==='undefined'){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    // Build flat table from curData
+    const rows=[];
+    curData.forEach(item=>{
+      item.subs.forEach(s=>{
+        rows.push({
+          'Синт. группа':item.name,
+          'Подтема':s.name,
+          'Кол-во':s.count,
+          '%':s.pctGroup,
+          'Динамика %':s.dynPct,
+          'Динамика абс':s.dynAbs
+        });
+      });
+    });
+    const wb=XLSX.utils.book_new();
+    // Sheet 1: subtopics
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Подтемы');
+    // Sheet 2: facts
+    const factRows=[];
+    curData.forEach(item=>{
+      item.facts.forEach(f=>{
+        factRows.push({'Синт. группа':item.name,'Факт':f.name,'Кол-во':f.count,'Динамика %':f.dynPct,'Динамика абс':f.dynAbs});
+      });
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(factRows),'Факты');
+    // Sheet 3: OMSU
+    const omsuRows=[];
+    curData.forEach(item=>{
+      item.omsus.forEach(o=>{
+        omsuRows.push({'Синт. группа':item.name,'ОМСУ':o.name,'Кол-во':o.count,'Динамика %':o.dynPct,'Динамика абс':o.dynAbs,'Гл. подтема':o.mainSub,'%':o.mainSubPct});
+      });
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(omsuRows),'ОМСУ');
+    XLSX.writeFile(wb,`dashboard_${curPer.start}_${curPer.end}.xlsx`);
+  }catch(err){alert('Ошибка: '+err.message);}
+  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
+};
+
 $('expHtml').onclick=()=>{
   if(!curData||!curPer)return;
   const css=`<style>${document.querySelector('style').textContent}</style>`;
@@ -529,7 +671,13 @@ $('expHtml').onclick=()=>{
   curData.forEach((item,i)=>{
     nav+=`<button class="tb${i===0?' on':''}" onclick="sw(${i})">${item.name} (${item.total.toLocaleString('ru')})</button>`;
     const dp=Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100);
-    const sR=item.subs.map((s,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${rdyn(s.dynPct,s.dynAbs)}</td></tr>`).join('');
+    const sR=item.subs.map((s,i)=>{
+      const fh=s.facts&&s.facts.length>0?s.facts.map(f=>`<div class="fitem"><span class="fn">${f[0]}</span><span class="fc">${f[1]}</span></div>`).join(''):'<span style="color:var(--td);font-size:11px">Нет данных</span>';
+      const hid=i>=10?' class="dr2 mr2 cr" style="display:none"':' class="dr2 cr"';
+      return`<tr${hid} onclick="togExpE(this,'esf-${i}-${i}')">
+        <td><span class="ei">▶</span>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${rdyn(s.dynPct,s.dynAbs)}</td></tr>
+      <tr${i>=10?' class="fr mr2" style="display:none"':' class="fr"'} id="esf-${i}-${i}"><td colspan="4" style="padding:2px 8px 8px 24px"><div class="fin"><div class="fit">📋 Факты</div>${fh}</div></td></tr>`;
+    }).join('');
     const sRbtn=item.subs.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.subs.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
     const fR=item.facts.map((f,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${f.name}</td><td>${f.count}</td><td>${rdyn(f.dynPct,f.dynAbs)}</td></tr>`).join('');
     const fRbtn=item.facts.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.facts.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
@@ -555,11 +703,11 @@ $('expHtml').onclick=()=>{
       </div>
       <div style="margin-bottom:16px"><div class="sb"><div class="st"><span>📅 Динамика по дням</span></div><div class="cc"><canvas id="ech-${i}"></canvas></div></div></div>
       <div class="dg">
-        <div class="sb"><div class="st"><span>📌 Подтемы</span></div><div class="pg-wrap"><table><thead><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr></thead><tbody>${sR}</tbody></table>${sRbtn}</div></div>
-        <div class="sb"><div class="st"><span>⚠️ Факты</span></div><div class="pg-wrap"><table><thead><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr></thead><tbody>${fR}</tbody></table>${fRbtn}</div></div>
-        <div class="sb"><div class="st"><span>🏢 ОМСУ</span></div><div class="pg-wrap"><table><thead><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr></thead><tbody>${oR}</tbody></table>${oRbtn}</div></div>
-        <div class="sb"><div class="st"><span>✉️ Заявители</span></div><div class="pg-wrap"><table><thead><tr><th>Email</th><th>Кол-во</th></tr></thead><tbody>${mR}</tbody></table>${mRbtn}</div></div>
-        <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Адреса</span></div><div class="pg-wrap"><table><thead><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr></thead><tbody>${aR}</tbody></table>${aRbtn}</div></div>
+        <div class="sb"><div class="st"><span>📌 Топ-10 Подтем из ${item.subs.length}</span></div><div class="pg-wrap"><table><thead><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr></thead><tbody>${sR}</tbody></table>${sRbtn}</div></div>
+        <div class="sb"><div class="st"><span>⚠️ Топ-10 Фактов из ${item.facts.length}</span></div><div class="pg-wrap"><table><thead><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr></thead><tbody>${fR}</tbody></table>${fRbtn}</div></div>
+        <div class="sb"><div class="st"><span>🏢 Топ-10 ОМСУ из ${item.omsus.length}</span></div><div class="pg-wrap"><table><thead><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr></thead><tbody>${oR}</tbody></table>${oRbtn}</div></div>
+        <div class="sb"><div class="st"><span>✉️ Топ-10 Заявителей из ${item.mails.length}</span></div><div class="pg-wrap"><table><thead><tr><th>Email</th><th>Кол-во</th></tr></thead><tbody>${mR}</tbody></table>${mRbtn}</div></div>
+        <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Топ-10 Адресов из ${item.addrs.length}</span></div><div class="pg-wrap"><table><thead><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr></thead><tbody>${aR}</tbody></table>${aRbtn}</div></div>
       </div></div>`;
   });
   nav+='</div>';cont+='</div>';
@@ -597,73 +745,7 @@ const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашбор
 };
 
 
-// ═══════════════════════════════════
-// ═══════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════
 
-
-// ═══════════════════════════════════
-// GENERATE — calls Vercel API
-// ═══════════════════════════════════
-$('genBtn').onclick=async()=>{
-  const s=$('startDate').value,e=$('endDate').value;
-  const cs=$('compStartDate').value,ce=$('compEndDate').value;
-  if(!s||!e||!cs||!ce){alert('Заполните все 4 даты');return;}
-
-  saveS();
-  $('genBtn').disabled=true;
-  $('dash').style.display='none';
-  $('abar').style.display='none';
-  showProg('Запрос к серверу...');
-
-  try{
-    prog(10,'Загрузка данных с сервера...');
-
-    const resp=await fetch('/api',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        start:s,end:e,compStart:cs,compEnd:ce,
-        omsuFilter:[...selOmsu]
-      })
-    });
-
-    prog(60,'Получение ответа...');
-
-    if(!resp.ok){
-      const err=await resp.json().catch(()=>({error:resp.statusText}));
-      throw new Error(err.error||`Ошибка сервера: ${resp.status}`);
-    }
-
-    const json=await resp.json();
-    if(!json.data?.length){alert('Нет данных за указанный период');return;}
-
-    prog(90,'Формирование дашборда...');
-    await delay(0);
-
-    curData=json.data;
-    curPer={start:s,end:e,compStart:cs,compEnd:ce,omsu:[...selOmsu]};
-    lazyDy=json.daily||{};
-
-    const yearsInfo=json.yearsLoaded?.join(', ')||'';
-    const mainCnt=(json.counts?.main||0).toLocaleString('ru');
-    const compCnt=(json.counts?.comp||0).toLocaleString('ru');
-    $('dataInfo').textContent=`Основной период: ${mainCnt} строк · Сравнение: ${compCnt} строк · Годы: ${yearsInfo}`;
-
-    prog(100,'Готово!');await delay(150);
-
-    renderDash(json.data,json.daily||{});
-    $('dash').style.display='block';
-    $('abar').style.display='flex';
-    $('dash').scrollIntoView({behavior:'smooth',block:'start'});
-
-  }catch(err){
-    alert('Ошибка: '+err.message);console.error(err);
-  }finally{
-    hideProg();$('genBtn').disabled=false;
-  }
-};
 
 // ═══════════════════════════════════
 // INIT
