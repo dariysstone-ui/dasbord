@@ -1,204 +1,255 @@
+// api/index.js — Vercel Serverless Function
+// Fetches CSV files from GitHub Releases, aggregates on server, returns dashboard JSON.
+// Supports multi-year queries (e.g. main=2026, comp=2025 → fetches both files).
+//
+// GitHub Release structure:
+//   Tag:  data-2025  →  file: 2025.csv
+//   Tag:  data-2026  →  file: 2026.csv
+//
+// Required env vars in Vercel:
+//   GITHUB_OWNER  — your GitHub username, e.g. "myusername"
+//   GITHUB_REPO   — repository name, e.g. "dashboard"
+//   GITHUB_TOKEN  — personal access token (Settings → Developer settings → PAT)
+//                   Needs only "public_repo" scope. Avoids rate limits (60 req/hr anon).
+
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  async function fetchWithRetry(url, retries = 3, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(url);
-        if (response.ok) return response;
-        if (response.status === 503 || response.status === 429) {
-          const waitTime = delay * Math.pow(2, i);
-          console.log(`Retry ${i + 1}/${retries} after ${waitTime}ms (status: ${response.status})`);
-          await new Promise(r => setTimeout(r, waitTime));
-          continue;
-        }
-        const errorText = await response.text();
-        throw new Error(`Google Sheets API error ${response.status}: ${errorText.substring(0, 200)}`);
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        console.log(`Request failed, retrying (${i + 1}/${retries}):`, error.message);
-        await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
-      }
-    }
-  }
-
   try {
     const { start, end, compStart, compEnd, omsuFilter = [] } = req.body;
-    
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
 
-    const SHEET_ID = process.env.SHEET_ID;
-    const API_KEY = process.env.GOOGLE_API_KEY;
-    
-    if (!SHEET_ID || !API_KEY) {
-      return res.status(500).json({ error: 'Не настроены переменные окружения', hasSheetId: !!SHEET_ID, hasApiKey: !!API_KEY });
+    const OWNER = process.env.GITHUB_OWNER;
+    const REPO  = process.env.GITHUB_REPO;
+    const TOKEN = process.env.GITHUB_TOKEN; // optional but recommended
+
+    if (!OWNER || !REPO) {
+      return res.status(500).json({ error: 'GITHUB_OWNER и GITHUB_REPO не настроены' });
     }
 
-    const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?key=${API_KEY}`;
-    const metaResponse = await fetchWithRetry(metaUrl);
-    if (!metaResponse.ok) throw new Error(`Ошибка метаданных: ${metaResponse.status}`);
-    
-    const metadata = await metaResponse.json();
-    const sheetName = metadata.sheets?.[0]?.properties?.title || 'Лист1';
-    const RANGE = `${sheetName}!A:Z`;
+    // URL for GitHub Releases asset: data-{year} tag, file {year}.csv
+    const csvUrl = (year) =>
+      `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}.csv`;
 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`;
-    const response = await fetchWithRetry(url);
-    const data = await response.json();
-    
-    if (!data.values || data.values.length < 2) {
-      return res.status(400).json({ error: 'Таблица пуста или содержит только заголовки', rowCount: data.values?.length || 0 });
-    }
-
-    const headers = data.values[0].map(h => String(h || '').trim());
-    const rows = data.values.slice(1).map((row) => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = String(row[i] || '').trim(); });
-      return obj;
-    });
-
-    const parseDate = (val) => {
-      if (!val) return null;
-      let d = val instanceof Date ? val : new Date(val);
-      return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+    // Determine which year files we need
+    const yearsNeeded = new Set();
+    const addYears = (s, e) => {
+      const y1 = parseInt(s.slice(0, 4)), y2 = parseInt(e.slice(0, 4));
+      for (let y = y1; y <= y2; y++) yearsNeeded.add(y);
     };
+    addYears(start, end);
+    addYears(compStart, compEnd);
 
-    const filter = (data, start, end, omsuFilter = []) => {
-      return data.filter(r => {
-        const date = parseDate(r['Дата (первого взятия в работу)']);
-        if (!date || date < start || date > end) return false;
-        const omsu = (r['ОМСУ'] || '').trim();
-        if (omsuFilter.length > 0 && !omsuFilter.includes(omsu)) return false;
-        return true;
-      });
-    };
+    // Fetch and parse all needed CSV files in parallel
+    const yearData = {};
+    await Promise.all([...yearsNeeded].map(async (year) => {
+      const url = csvUrl(year);
+      const headers = TOKEN
+        ? { Authorization: `token ${TOKEN}`, Accept: 'application/octet-stream' }
+        : { Accept: 'application/octet-stream' };
 
-    // === ОБНОВЛЕННАЯ АГРЕГАЦИЯ ДЛЯ GOOGLE SHEETS ===
-    const aggregateData = (data) => {
-      const groups = {};
-      data.forEach(row => {
-        const sg = (row['Синт. группа'] || '').trim() || 'Без группы';
-        if (!groups[sg]) groups[sg] = { total: 0, sub: {}, omsu: {}, fact: {}, mail: {}, addr: {} };
-        groups[sg].total++;
-
-        const sub = (row['Подтема'] || '').trim() || 'Нет';
-        // Sub теперь объект { count, facts }
-        if (!groups[sg].sub[sub]) groups[sg].sub[sub] = { count: 0, facts: {} };
-        groups[sg].sub[sub].count++;
-        
-        const fact = (row['Факт'] || '').trim() || 'Нет';
-        groups[sg].sub[sub].facts[fact] = (groups[sg].sub[sub].facts[fact] || 0) + 1;
-
-        const omsu = (row['ОМСУ'] || '').trim() || 'Нет';
-        if (!groups[sg].omsu[omsu]) groups[sg].omsu[omsu] = { c: 0, subs: {} };
-        groups[sg].omsu[omsu].c++;
-        groups[sg].omsu[omsu].subs[sub] = (groups[sg].omsu[omsu].subs[sub] || 0) + 1;
-
-        if (!groups[sg].fact[fact]) groups[sg].fact[fact] = { count: 0 };
-        groups[sg].fact[fact].count++;
-
-        const mail = ((row['Почта заявителя'] || '').trim()).toLowerCase();
-        if (mail && mail !== 'нет') {
-          if (!groups[sg].mail[mail]) groups[sg].mail[mail] = { c: 0, facts: {}, omsus: new Set() };
-          groups[sg].mail[mail].c++;
-          groups[sg].mail[mail].facts[fact] = (groups[sg].mail[mail].facts[fact] || 0) + 1;
-          if (omsu && omsu !== 'Нет') groups[sg].mail[mail].omsus.add(omsu);
+      const resp = await fetch(url, { headers, redirect: 'follow' });
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          console.warn(`${year}.csv not found (tag: data-${year})`);
+          yearData[year] = [];
+          return;
         }
-
-        const fullAddr = (row['Адрес'] || '').trim();
-        const street = (row['Улица'] || '').trim();
-        if (street && fullAddr) {
-          if (!groups[sg].addr[fullAddr]) groups[sg].addr[fullAddr] = { c: 0, subs: {} };
-          groups[sg].addr[fullAddr].c++;
-          groups[sg].addr[fullAddr].subs[sub] = (groups[sg].addr[fullAddr].subs[sub] || 0) + 1;
-        }
-      });
-      return groups;
-    };
-
-    const processDashboardData = (main, comp) => {
-      const result = [];
-      for (const [name, m] of Object.entries(main)) {
-        const c = comp[name] || { total: 0, sub: {}, omsu: {}, fact: {}, mail: {}, addr: {} };
-        const entry = { name, total: m.total, compTotal: c.total, subs: [], facts: [], omsus: [], mails: [], addrs: [] };
-
-        // Подтемы с фактами
-        Object.entries(m.sub).sort((a,b)=>b[1].count-a[1].count).slice(0,5).forEach(([k,v]) => {
-          const cv = c.sub[k]?.count || 0;
-          const diff = v.count - cv;
-          const pct = cv === 0 ? (v.count>0?100:0) : Math.round((diff/cv)*100);
-          entry.subs.push({ 
-            name: k, 
-            count: v.count, 
-            pctGroup: Math.round((v.count/m.total)*100), 
-            dynPct: pct, 
-            dynAbs: diff,
-            facts: Object.entries(v.facts).sort((a,b)=>b[1]-a[1])
-          });
-        });
-
-        Object.entries(m.fact).sort((a,b)=>b[1].count-a[1].count).slice(0,5).forEach(([k,v]) => {
-          const cv = c.fact[k]?.count || 0;
-          const diff = v.count - cv;
-          const pct = cv === 0 ? (v.count>0?100:0) : Math.round((diff/cv)*100);
-          entry.facts.push({ name: k, count: v.count, dynPct: pct, dynAbs: diff });
-        });
-
-        Object.entries(m.omsu).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
-          const cv = c.omsu[k]?.c || 0;
-          const diff = d.c - cv;
-          const pct = cv === 0 ? (d.c>0?100:0) : Math.round((diff/cv)*100);
-          const sortedSubs = Object.entries(d.subs).sort((a,b)=>b[1]-a[1]);
-          const mainSt = sortedSubs[0]?.[0] || '-';
-          const mainStCnt = sortedSubs[0]?.[1] || 0;
-          const stPct = d.c > 0 ? Math.round((mainStCnt / d.c) * 100) : 0;
-          entry.omsus.push({ name: k, count: d.c, dynPct: pct, dynAbs: diff, mainSub: mainSt, mainSubCnt: mainStCnt, mainSubPct: stPct });
-        });
-
-        Object.entries(m.mail).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
-          entry.mails.push({ email: k, count: d.c, facts: Object.entries(d.facts).sort((a,b)=>b[1]-a[1]), omsus: Array.from(d.omsus) });
-        });
-
-        Object.entries(m.addr).sort((a,b)=>b[1].c-a[1].c).slice(0,10).forEach(([k,d]) => {
-          const sortedSubs = Object.entries(d.subs).sort((a,b)=>b[1]-a[1]);
-          const mainSt = sortedSubs[0]?.[0] || '-';
-          const mainStCnt = sortedSubs[0]?.[1] || 0;
-          const stPct = d.c > 0 ? Math.round((mainStCnt / d.c) * 100) : 0;
-          entry.addrs.push({ address: k, count: d.c, mainSub: mainSt, mainSubCnt: mainStCnt, mainSubPct: stPct });
-        });
-
-        result.push(entry);
+        throw new Error(`Ошибка загрузки ${year}.csv: ${resp.status}`);
       }
-      return result.sort((a,b) => b.total - a.total);
-    };
+      const text = await resp.text();
+      yearData[year] = parseCSV(text);
+      console.log(`Loaded ${year}.csv: ${yearData[year].length} rows`);
+    }));
 
-    const mainData = filter(rows, start, end, omsuFilter);
-    const compData = filter(rows, compStart, compEnd, omsuFilter);
-    
-    const statsMain = aggregateData(mainData);
-    const statsComp = aggregateData(compData);
-    
-    const dashboardData = processDashboardData(statsMain, statsComp);
+    // Merge all rows into one flat array
+    const allRows = Object.values(yearData).flat();
 
-    return res.status(200).json({ 
-      data: dashboardData, 
-      counts: [mainData.length, compData.length],
-      rawData: rows.filter(r => {
-        const date = parseDate(r['Дата (первого взятия в работу)']);
-        return date && date >= start && date <= end && 
-               (omsuFilter.length === 0 || omsuFilter.includes((r['ОМСУ'] || '').trim()));
-      })
+    // Aggregate
+    const mainGroups = aggregate(allRows, start, end, omsuFilter);
+    const compGroups = aggregate(allRows, compStart, compEnd, omsuFilter);
+    const dashboardData = processDashboardData(mainGroups, compGroups);
+
+    // Daily counts for sparkline (main period only)
+    const daily = buildDaily(allRows, start, end, omsuFilter);
+
+    return res.status(200).json({
+      data: dashboardData,
+      daily,
+      yearsLoaded: [...yearsNeeded],
+      counts: {
+        main: allRows.filter(r => inRange(r, start, end, omsuFilter)).length,
+        comp: allRows.filter(r => inRange(r, compStart, compEnd, omsuFilter)).length,
+      }
     });
 
   } catch (err) {
     console.error('API Error:', err);
     return res.status(500).json({ error: err.message || 'Внутренняя ошибка сервера' });
   }
+}
+
+// ─── CSV Parser (handles semicolon delimiter, quoted multiline fields) ───
+function parseCSV(text) {
+  const rows = [];
+  let headers = null;
+  let colIdx = {};
+  let delim = ';';
+  let inQ = false, field = '', fields = [];
+
+  const commitField = () => { fields.push(inQ ? field : field.trim()); field = ''; inQ = false; };
+  const commitRow = () => {
+    const row = fields; fields = [];
+    if (!row.length || (row.length === 1 && !row[0])) return;
+    if (!headers) {
+      // Auto-detect delimiter
+      if (row.length === 1 && row[0].includes(',')) {
+        delim = ',';
+        const reVals = row[0].split(',').map(h => h.replace(/^\uFEFF/, '').trim());
+        headers = reVals;
+      } else {
+        headers = row.map(h => h.replace(/^\uFEFF/, '').trim());
+      }
+      headers.forEach((h, i) => colIdx[h] = i);
+      return;
+    }
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (row[i] || '').trim());
+    rows.push(obj);
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += ch;
+    } else {
+      if (ch === '"' && field === '') inQ = true;
+      else if (ch === delim) commitField();
+      else if (ch === '\n') { commitField(); commitRow(); }
+      else if (ch === '\r') { /* skip */ }
+      else field += ch;
+    }
+  }
+  if (field || fields.length) { commitField(); commitRow(); }
+  return rows;
+}
+
+// ─── Date helper ───
+function parseDate(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+}
+
+function inRange(row, start, end, omsuFilter) {
+  const date = parseDate(row['Дата (первого взятия в работу)']);
+  if (!date || date < start || date > end) return false;
+  if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) return false;
+  return true;
+}
+
+// ─── Aggregation ───
+function aggregate(rows, start, end, omsuFilter) {
+  const groups = {};
+  for (const row of rows) {
+    if (!inRange(row, start, end, omsuFilter)) continue;
+    const sg   = row['Синт. группа']?.trim() || 'Без группы';
+    const sub  = row['Подтема']?.trim()      || 'Нет';
+    const fact = row['Факт']?.trim()         || 'Нет';
+    const omsu = row['ОМСУ']?.trim()         || 'Нет';
+    const mail = (row['Почта заявителя'] || '').trim().toLowerCase();
+    const addr = row['Адрес']?.trim()        || '';
+    const street = row['Улица']?.trim()      || '';
+
+    if (!groups[sg]) groups[sg] = { total: 0, sub: {}, omsu: {}, fact: {}, mail: {}, addr: {} };
+    const g = groups[sg];
+    g.total++;
+
+    if (!g.sub[sub]) g.sub[sub] = { count: 0, facts: {} };
+    g.sub[sub].count++;
+    g.sub[sub].facts[fact] = (g.sub[sub].facts[fact] || 0) + 1;
+
+    if (!g.omsu[omsu]) g.omsu[omsu] = { c: 0, subs: {} };
+    g.omsu[omsu].c++;
+    g.omsu[omsu].subs[sub] = (g.omsu[omsu].subs[sub] || 0) + 1;
+
+    if (!g.fact[fact]) g.fact[fact] = { count: 0 };
+    g.fact[fact].count++;
+
+    if (mail && mail !== 'нет' && mail.includes('@')) {
+      if (!g.mail[mail]) g.mail[mail] = { c: 0, facts: {}, omsus: new Set() };
+      g.mail[mail].c++;
+      g.mail[mail].facts[fact] = (g.mail[mail].facts[fact] || 0) + 1;
+      if (omsu !== 'Нет') g.mail[mail].omsus.add(omsu);
+    }
+
+    if (street && addr) {
+      if (!g.addr[addr]) g.addr[addr] = { c: 0, subs: {} };
+      g.addr[addr].c++;
+      g.addr[addr].subs[sub] = (g.addr[addr].subs[sub] || 0) + 1;
+    }
+  }
+  return groups;
+}
+
+function buildDaily(rows, start, end, omsuFilter) {
+  const daily = {};
+  for (const row of rows) {
+    if (!inRange(row, start, end, omsuFilter)) continue;
+    const date = parseDate(row['Дата (первого взятия в работу)']);
+    const sg = row['Синт. группа']?.trim() || 'Без группы';
+    if (!daily[date]) daily[date] = {};
+    daily[date][sg] = (daily[date][sg] || 0) + 1;
+  }
+  return daily;
+}
+
+// ─── Process into dashboard format ───
+function processDashboardData(main, comp) {
+  const result = [];
+  const dyn = (v, cv) => {
+    const diff = v - cv;
+    return { pct: cv === 0 ? (v > 0 ? 100 : 0) : Math.round((diff / cv) * 100), abs: diff };
+  };
+
+  for (const [name, m] of Object.entries(main)) {
+    const c = comp[name] || { total: 0, sub: {}, omsu: {}, fact: {}, mail: {}, addr: {} };
+    const entry = { name, total: m.total, compTotal: c.total, subs: [], facts: [], omsus: [], mails: [], addrs: [] };
+
+    Object.entries(m.sub).sort((a, b) => b[1].count - a[1].count).forEach(([k, v]) => {
+      const { pct, abs } = dyn(v.count, c.sub[k]?.count || 0);
+      entry.subs.push({ name: k, count: v.count, pctGroup: Math.round((v.count / m.total) * 100), dynPct: pct, dynAbs: abs, facts: Object.entries(v.facts).sort((a, b) => b[1] - a[1]) });
+    });
+    Object.entries(m.fact).sort((a, b) => b[1].count - a[1].count).forEach(([k, v]) => {
+      const { pct, abs } = dyn(v.count, c.fact[k]?.count || 0);
+      entry.facts.push({ name: k, count: v.count, dynPct: pct, dynAbs: abs });
+    });
+    Object.entries(m.omsu).sort((a, b) => b[1].c - a[1].c).forEach(([k, d]) => {
+      const { pct, abs } = dyn(d.c, c.omsu[k]?.c || 0);
+      const ss = Object.entries(d.subs).sort((a, b) => b[1] - a[1]);
+      entry.omsus.push({ name: k, count: d.c, dynPct: pct, dynAbs: abs, mainSub: ss[0]?.[0] || '-', mainSubCnt: ss[0]?.[1] || 0, mainSubPct: d.c > 0 ? Math.round((ss[0]?.[1] || 0) / d.c * 100) : 0 });
+    });
+    Object.entries(m.mail).sort((a, b) => b[1].c - a[1].c).forEach(([k, d]) => {
+      entry.mails.push({ email: k, count: d.c, facts: Object.entries(d.facts).sort((a, b) => b[1] - a[1]), omsus: [...d.omsus] });
+    });
+    Object.entries(m.addr).sort((a, b) => b[1].c - a[1].c).forEach(([k, d]) => {
+      const ss = Object.entries(d.subs).sort((a, b) => b[1] - a[1]);
+      entry.addrs.push({ address: k, count: d.c, mainSub: ss[0]?.[0] || '-', mainSubCnt: ss[0]?.[1] || 0, mainSubPct: d.c > 0 ? Math.round((ss[0]?.[1] || 0) / d.c * 100) : 0 });
+    });
+    result.push(entry);
+  }
+  return result.sort((a, b) => b.total - a.total);
 }
