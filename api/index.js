@@ -60,10 +60,35 @@ export default async function handler(req, res) {
       console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
     }));
 
-    // ── Raw export mode: return flat rows with all original columns ──
+    // ── Raw export mode: fetch {year}_rows.jsonl.gz, decompress, filter, return ──
+    // File contains ALL columns including "Описание", compressed with gzip (~70-90 MB).
+    // We decompress line-by-line (JSONL) to keep memory low.
     if (exportRaw) {
-      const rawRows = buildRawRows(yearData, start, end, omsuFilter);
-      return res.status(200).json({ rawRows });
+      const rowsUrl = (year) =>
+        `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`;
+
+      let allRawRows = [];
+
+      // Process years sequentially to avoid parallel RAM spikes
+      for (const year of [...yearsNeeded].sort()) {
+        const url = rowsUrl(year);
+        const hdrs = TOKEN
+          ? { Authorization: `token ${TOKEN}`, Accept: 'application/octet-stream' }
+          : { Accept: 'application/octet-stream' };
+
+        const resp = await fetch(url, { headers: hdrs, redirect: 'follow' });
+        if (!resp.ok) {
+          console.warn(`${year}_rows.jsonl.gz not found — run aggregate_csv.py first`);
+          continue;
+        }
+
+        // Decompress gzip stream line by line without loading everything into RAM
+        const yearRows = await decompressJsonlGz(resp, start, end, omsuFilter);
+        allRawRows = allRawRows.concat(yearRows);
+        console.log(`Export ${year}: ${yearRows.length} rows (filtered)`);
+      }
+
+      return res.status(200).json({ rawRows: allRawRows });
     }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
@@ -292,4 +317,115 @@ function processDashboardData(main, comp) {
     result.push(entry);
   }
   return result.sort((a,b)=>b.total-a.total);
+}
+
+// ─── Date parser (used by buildRawRows) ───
+function parseDate(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+}
+
+
+// ─── CSV Parser (handles semicolon/comma delimiter, quoted multiline fields) ───
+function parseCSV(text) {
+  const rows = [];
+  let headers = null, colIdx = {}, delim = ';';
+  let inQ = false, field = '', fields = [];
+
+  const commitField = () => { fields.push(inQ ? field : field.trim()); field = ''; inQ = false; };
+  const commitRow = () => {
+    const row = fields; fields = [];
+    if (!row.length || (row.length === 1 && !row[0])) return;
+    if (!headers) {
+      if (row.length === 1 && row[0].includes(',')) {
+        delim = ',';
+        headers = row[0].split(',').map(h => h.replace(/^\uFEFF/, '').trim());
+      } else {
+        headers = row.map(h => h.replace(/^\uFEFF/, '').trim());
+      }
+      headers.forEach((h, i) => colIdx[h] = i);
+      return;
+    }
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (row[i] || '').trim());
+    rows.push(obj);
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += ch;
+    } else {
+      if (ch === '"' && field === '') inQ = true;
+      else if (ch === delim) commitField();
+      else if (ch === '\n') { commitField(); commitRow(); }
+      else if (ch === '\r') {}
+      else field += ch;
+    }
+  }
+  if (field || fields.length) { commitField(); commitRow(); }
+  return rows;
+}
+
+// ─── Decompress gzip JSONL stream, filter rows by date/omsu, return array ───
+// Processes data line-by-line: never loads the entire file into RAM.
+async function decompressJsonlGz(response, start, end, omsuFilter) {
+  const { createGunzip } = await import('node:zlib');
+
+  return new Promise((resolve, reject) => {
+    const results = [];
+    const gunzip = createGunzip();
+    let buf = '';
+
+    gunzip.on('data', chunk => {
+      buf += chunk.toString('utf-8');
+      const lines = buf.split('\n');
+      buf = lines.pop(); // keep incomplete trailing line
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const row = JSON.parse(line);
+          const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
+          if (!date || date < start || date > end) continue;
+          if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
+          results.push(row);
+        } catch (_) {}
+      }
+    });
+
+    gunzip.on('end', () => {
+      // flush last line if file doesn't end with \n
+      if (buf.trim()) {
+        try {
+          const row = JSON.parse(buf);
+          const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
+          if (date && date >= start && date <= end) {
+            if (omsuFilter.length === 0 || omsuFilter.includes((row['ОМСУ'] || '').trim()))
+              results.push(row);
+          }
+        } catch (_) {}
+      }
+      resolve(results);
+    });
+
+    gunzip.on('error', reject);
+
+    // Pipe fetch response body → gunzip
+    const reader = response.body.getReader();
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { gunzip.end(); break; }
+          gunzip.write(Buffer.from(value));
+        }
+      } catch (e) { reject(e); }
+    })();
+  });
 }
