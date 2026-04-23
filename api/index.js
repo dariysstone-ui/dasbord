@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { start, end, compStart, compEnd, omsuFilter = [], exportRaw = false } = req.body;
+    const { start, end, compStart, compEnd, omsuFilter = [], sourceFilter = [], exportRaw = false } = req.body;
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
@@ -107,13 +107,13 @@ export default async function handler(req, res) {
     }
 
     // Build aggregates for main and comparison periods
-    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter);
-    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter);
-    const daily    = buildDaily(allDays, start, end, omsuFilter);
+    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter);
+    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter, sourceFilter);
+    const daily    = buildDaily(allDays, start, end, omsuFilter, sourceFilter);
 
     const data = processDashboardData(mainAgg.groups, compAgg.groups);
 
-    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter);
+    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter, sourceFilter);
 
     return res.status(200).json({
       data,
@@ -174,7 +174,7 @@ function mergeGroup(dst, src) {
 }
 
 // ─── Aggregate days in a date range into group totals ───
-function buildPeriodAgg(allDays, start, end, omsuFilter) {
+function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
   const groups = {};
   let total = 0;
 
@@ -182,13 +182,27 @@ function buildPeriodAgg(allDays, start, end, omsuFilter) {
     if (date < start || date > end) continue;
 
     for (const [sg, g] of Object.entries(dayGroups)) {
+      // Source filter: check if any rows from selected sources exist in this group/day
+      if (sourceFilter.length > 0) {
+        const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
+        if (srcTotal === 0) continue;
+      }
+
       if (!groups[sg]) groups[sg] = { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{} };
       const dst = groups[sg];
 
-      if (omsuFilter.length === 0) {
-        // No filter — merge whole group
+      if (omsuFilter.length === 0 && sourceFilter.length === 0) {
+        // No filters — merge whole group
         addToGroup(dst, g);
         total += g.total || 0;
+      } else if (omsuFilter.length === 0 && sourceFilter.length > 0) {
+        // Source filter only — scale group by source ratio
+        const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
+        const ratio = (g.total || 1) > 0 ? srcTotal / g.total : 0;
+        if (ratio > 0) {
+          addToGroupScaled(dst, g, ratio);
+          total += srcTotal;
+        }
       } else {
         // Filter by OMSU — only count rows from selected OMSU
         let groupTotal = 0;
@@ -260,19 +274,21 @@ function addToGroup(dst, g) {
 }
 
 // ─── Daily counts for sparkline ───
-function buildDaily(allDays, start, end, omsuFilter) {
+function buildDaily(allDays, start, end, omsuFilter, sourceFilter = []) {
   const daily = {};
   for (const [date, groups] of Object.entries(allDays)) {
     if (date < start || date > end) continue;
     daily[date] = {};
     for (const [sg, g] of Object.entries(groups)) {
-      if (omsuFilter.length === 0) {
-        daily[date][sg] = (daily[date][sg] || 0) + (g.total || 0);
-      } else {
-        let n = 0;
+      let n = 0;
+      if (omsuFilter.length === 0 && sourceFilter.length === 0) {
+        n = g.total || 0;
+      } else if (omsuFilter.length > 0) {
         for (const omsu of omsuFilter) n += g.omsu?.[omsu]?.c || 0;
-        if (n > 0) daily[date][sg] = (daily[date][sg] || 0) + n;
+      } else if (sourceFilter.length > 0) {
+        for (const src of sourceFilter) n += g.sources?.[src] || 0;
       }
+      if (n > 0) daily[date][sg] = (daily[date][sg] || 0) + n;
     }
   }
   return daily;
