@@ -479,13 +479,7 @@ function renderTab(item,idx,daily){
               label:t=>`${t.dataset.label}: ${t.raw??'-'}`
             }
           },
-          // Data labels: show values on points (only for short ranges)
-          datalabels: days.length<=31?{
-            display:ctx=>ctx.datasetIndex===0&&ctx.parsed.y>0,
-            color:'#7a90b0',font:{size:9},
-            anchor:'end',align:'top',offset:2,
-            formatter:v=>v>0?v:''
-          }:false
+          datalabels:false
         },
         scales:{
           x:{grid:{color:'rgba(36,48,68,.4)'},ticks:{color:'#4a607e',maxTicksLimit:14,font:{size:10}}},
@@ -613,11 +607,27 @@ $('genBtn').onclick=async()=>{
 // ═══════════════════════════════════
 
 $('expXls').onclick=async()=>{
-  if(!curData||!curPer){alert('Нет данных');return;}
+  if(!curPer){alert('Нет данных');return;}
   const btn=$('expXls');
-  btn.disabled=true;btn.textContent='⏳ Подготовка...';
+  btn.disabled=true;btn.textContent='⏳ Загрузка строк...';
   try{
-    // Load SheetJS dynamically
+    // Request raw rows from API (separate endpoint action)
+    const resp=await fetch('/api',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        start:curPer.start,end:curPer.end,
+        compStart:curPer.compStart,compEnd:curPer.compEnd,
+        omsuFilter:curPer.omsu||[],
+        exportRaw:true
+      })
+    });
+    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error||'Ошибка сервера');}
+    const json=await resp.json();
+    const rawRows=json.rawRows||[];
+    if(!rawRows.length){alert('Нет данных для выгрузки');return;}
+
+    btn.textContent='⏳ Формирование Excel...';
     if(typeof XLSX==='undefined'){
       await new Promise((res,rej)=>{
         const s=document.createElement('script');
@@ -625,41 +635,10 @@ $('expXls').onclick=async()=>{
         s.onload=res;s.onerror=rej;document.head.appendChild(s);
       });
     }
-    // Build flat table from curData
-    const rows=[];
-    curData.forEach(item=>{
-      item.subs.forEach(s=>{
-        rows.push({
-          'Синт. группа':item.name,
-          'Подтема':s.name,
-          'Кол-во':s.count,
-          '%':s.pctGroup,
-          'Динамика %':s.dynPct,
-          'Динамика абс':s.dynAbs
-        });
-      });
-    });
     const wb=XLSX.utils.book_new();
-    // Sheet 1: subtopics
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Подтемы');
-    // Sheet 2: facts
-    const factRows=[];
-    curData.forEach(item=>{
-      item.facts.forEach(f=>{
-        factRows.push({'Синт. группа':item.name,'Факт':f.name,'Кол-во':f.count,'Динамика %':f.dynPct,'Динамика абс':f.dynAbs});
-      });
-    });
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(factRows),'Факты');
-    // Sheet 3: OMSU
-    const omsuRows=[];
-    curData.forEach(item=>{
-      item.omsus.forEach(o=>{
-        omsuRows.push({'Синт. группа':item.name,'ОМСУ':o.name,'Кол-во':o.count,'Динамика %':o.dynPct,'Динамика абс':o.dynAbs,'Гл. подтема':o.mainSub,'%':o.mainSubPct});
-      });
-    });
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(omsuRows),'ОМСУ');
-    XLSX.writeFile(wb,`dashboard_${curPer.start}_${curPer.end}.xlsx`);
-  }catch(err){alert('Ошибка: '+err.message);}
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rawRows),'Данные');
+    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
+  }catch(err){alert('Ошибка: '+err.message);console.error(err);}
   finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
 };
 
@@ -712,26 +691,50 @@ $('expHtml').onclick=()=>{
   });
   nav+='</div>';cont+='</div>';
   // Embed all chart data as a JS array in the exported HTML
+  // Build chart data: main + comp periods, per group
+  const mainDays=Object.keys(lazyDy).sort();
+  const compDays2=Object.keys(lazyDyComp||{}).sort();
   const chartDataJson=JSON.stringify(curData.map(item=>{
-    const days=Object.keys(lazyDy).sort();
-    return{name:item.name,labels:days,values:days.map(d=>lazyDy[d]?.[item.name]||0)};
+    const mainVals=mainDays.map(d=>lazyDy[d]?.[item.name]||0);
+    const compVals=mainDays.map((_,i)=>{const cd=compDays2[i];return cd?(lazyDyComp[cd]?.[item.name]||0):null;});
+    const hasComp=compVals.some(v=>v!=null);
+    return{name:item.name,topSub:item.subs[0]?.name||'',labels:mainDays,mainVals,compVals,hasComp};
   }));
-  const pointR=Object.keys(lazyDy).length>60?0:3;
-
-  // Exported HTML chart init: uses DOMContentLoaded for reliability, retries if Chart.js not ready
   const expChartScript=`
     var CHART_DATA=${chartDataJson};
-    var POINT_R=${pointR};
     function initCharts(){
       if(typeof Chart==='undefined'){setTimeout(initCharts,100);return;}
       CHART_DATA.forEach(function(d,ci){
         var canvas=document.getElementById('ech-'+ci);
         if(!canvas)return;
-        new Chart(canvas,{type:'line',
-          data:{labels:d.labels,datasets:[{data:d.values,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',fill:true,tension:.4,pointRadius:POINT_R,pointHoverRadius:5,borderWidth:2}]},
+        var ds=[{
+          label:'Основной период',data:d.mainVals,
+          borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',
+          fill:true,tension:.4,pointRadius:d.labels.length>90?0:2,pointHoverRadius:5,borderWidth:2.5
+        }];
+        if(d.hasComp){ds.push({
+          label:'Период сравнения',data:d.compVals,
+          borderColor:'rgba(148,163,184,.5)',backgroundColor:'transparent',
+          fill:false,tension:.4,pointRadius:0,pointHoverRadius:4,
+          borderWidth:1.5,borderDash:[4,3]
+        });}
+        new Chart(canvas,{type:'line',data:{labels:d.labels,datasets:ds},
           options:{responsive:true,maintainAspectRatio:false,
-            plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,.95)',borderColor:'#243044',borderWidth:1,titleColor:'#7a90b0',bodyColor:'#e2eaf6',callbacks:{label:function(t){return'Обращений: '+t.raw;}}}},
-            scales:{x:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',maxTicksLimit:12,font:{size:10}}},y:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}}
+            interaction:{mode:'index',intersect:false},
+            plugins:{
+              legend:{display:d.hasComp,labels:{color:'#7a90b0',font:{size:10},boxWidth:12,padding:10}},
+              tooltip:{backgroundColor:'rgba(17,24,39,.95)',borderColor:'#243044',borderWidth:1,
+                titleColor:'#7a90b0',bodyColor:'#e2eaf6',
+                callbacks:{
+                  title:function(t){return[t[0].label,d.topSub?'Топ подтема: '+d.topSub:''].filter(Boolean);},
+                  label:function(t){return t.dataset.label+': '+(t.raw!=null?t.raw:'-');}
+                }
+              }
+            },
+            scales:{
+              x:{grid:{color:'rgba(36,48,68,.4)'},ticks:{color:'#4a607e',maxTicksLimit:14,font:{size:10}}},
+              y:{grid:{color:'rgba(36,48,68,.4)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}
+            }
           }
         });
       });
