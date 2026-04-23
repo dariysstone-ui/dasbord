@@ -228,6 +228,18 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
         }
         dst.total += groupTotal;
         total += groupTotal;
+        // Add mails — include if any of mail's omsus match the filter
+        for (const [mail, md] of Object.entries(g.mails || {})) {
+          const mailOmsus = (md.omsus || []).filter(o => omsuFilter.includes(o));
+          if (mailOmsus.length === 0) continue;
+          if (!dst.mails[mail]) dst.mails[mail] = { c: 0, facts: {}, omsus: [] };
+          dst.mails[mail].c += md.c || 0;
+          for (const [f, n] of Object.entries(md.facts || {}))
+            dst.mails[mail].facts[f] = (dst.mails[mail].facts[f] || 0) + n;
+          const exM = new Set(dst.mails[mail].omsus);
+          for (const o of mailOmsus) exM.add(o);
+          dst.mails[mail].omsus = [...exM];
+        }
       }
     }
   }
