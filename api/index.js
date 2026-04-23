@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { start, end, compStart, compEnd, omsuFilter = [] } = req.body;
+    const { start, end, compStart, compEnd, omsuFilter = [], exportRaw = false } = req.body;
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
@@ -59,6 +59,12 @@ export default async function handler(req, res) {
       yearAgg[year] = await resp.json();
       console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
     }));
+
+    // ── Raw export mode: return flat rows with all original columns ──
+    if (exportRaw) {
+      const rawRows = buildRawRows(yearData, start, end, omsuFilter);
+      return res.status(200).json({ rawRows });
+    }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
     const allDays = {};
