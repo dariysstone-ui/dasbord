@@ -60,63 +60,21 @@ export default async function handler(req, res) {
       console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
     }));
 
-    // ── CSV export mode: stream gzip → filter → write CSV directly to response ──
-    // True streaming: never accumulates rows in RAM, works for any period size.
+    // ── CSV export: return URLs for client-side browser download + filter params ──
+    // Browser fetches _rows.jsonl.gz directly, decompresses, filters and builds CSV.
+    // Bypasses Vercel 4.5MB response limit — works for any period size.
     if (exportRaw) {
-      const rowsUrl = (year) =>
-        `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`;
-
-      const COLS = [
-        'Порядковый номер','Номер ЕЦУР','Номер в источнике',
-        'Дата (первого взятия в работу)','Направление','Синт. группа',
-        'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
-        'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
-        'Описание','Почта заявителя','Управляющая компания','Адрес',
-        'Район','Населенный пункт','Улица','Дом','Внутренний Id'
-      ];
-
-      const escCsv = (v) => {
-        const s = String(v ?? '');
-        return (s.includes(';') || s.includes('"') || s.includes('\n') || s.includes('\r'))
-          ? '"' + s.replace(/"/g, '""') + '"'
-          : s;
-      };
-
-      // Set streaming CSV response headers
-      const fname = `export_${start}_${end}.csv`;
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
-      res.setHeader('Transfer-Encoding', 'chunked');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-
-      // Write UTF-8 BOM so Excel opens Cyrillic correctly
-      res.write('\uFEFF');
-      // Write header row
-      res.write(COLS.map(escCsv).join(';') + '\r\n');
-
-      let totalRows = 0;
-
-      for (const year of [...yearsNeeded].sort()) {
-        const url = rowsUrl(year);
-        const hdrs = TOKEN
-          ? { Authorization: `token ${TOKEN}`, Accept: 'application/octet-stream' }
-          : { Accept: 'application/octet-stream' };
-
-        const resp2 = await fetch(url, { headers: hdrs, redirect: 'follow' });
-        if (!resp2.ok) {
-          console.warn(`${year}_rows.jsonl.gz not found`);
-          continue;
-        }
-
-        // Stream: decompress → filter → write CSV lines directly
-        const count = await streamJsonlGzToCsv(resp2, start, end, omsuFilter, sourceFilter, COLS, escCsv, res);
-        totalRows += count;
-        console.log(`CSV export ${year}: ${count} rows written`);
-      }
-
-      console.log(`CSV export total: ${totalRows} rows`);
-      res.end();
-      return;
+      const rowsUrls = [...yearsNeeded].sort().map(year => ({
+        year,
+        url: `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`
+      }));
+      return res.status(200).json({
+        mode: 'client-csv',
+        rowsUrls,
+        start, end,
+        omsuFilter,
+        sourceFilter
+      });
     }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
@@ -496,7 +454,9 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
     gunzip.on('end', () => {
       if (buf.trim()) {
         try {
-          const row = JSON.parse(buf);
+          const raw = JSON.parse(buf);
+          const row = {};
+          for (const [k, v] of Object.entries(raw)) row[k.trim()] = v;
           const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
           if (date && date >= start && date <= end) {
             const omsuOk = omsuFilter.length === 0 || omsuFilter.includes((row['ОМСУ'] || '').trim());
