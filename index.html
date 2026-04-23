@@ -635,8 +635,23 @@ $('expXls').onclick=async()=>{
         s.onload=res;s.onerror=rej;document.head.appendChild(s);
       });
     }
+    // Fixed column order — must match original CSV exactly
+    const COLS=[
+      'Порядковый номер','Номер ЕЦУР','Номер в источнике',
+      'Дата (первого взятия в работу)','Направление','Синт. группа',
+      'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
+      'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
+      'Описание','Почта заявителя','Управляющая компания','Адрес',
+      'Район','Населенный пункт','Улица','Дом','Внутренний Id'
+    ];
+    // Build array-of-arrays: header row + data rows (no extra columns)
+    const aoa=[COLS];
+    for(const row of rawRows){
+      aoa.push(COLS.map(col=>row[col]??''));
+    }
     const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rawRows),'Данные');
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb,ws,'Данные');
     XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
   finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
