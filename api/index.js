@@ -82,9 +82,12 @@ export default async function handler(req, res) {
 
     const data = processDashboardData(mainAgg.groups, compAgg.groups);
 
+    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter);
+
     return res.status(200).json({
       data,
       daily,
+      dailyComp,
       yearsLoaded: [...yearsNeeded],
       counts: { main: mainAgg.total, comp: compAgg.total }
     });
