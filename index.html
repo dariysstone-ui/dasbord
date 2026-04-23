@@ -4,464 +4,711 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>📊 Дашборд обращений</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
+
     :root {
-      --bg-main: #0b1120;
-      --bg-panel: #1e293b;
-      --border: #334155;
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
-      --accent: #3b82f6;
-      --success: #10b981;
-      --success-bg: rgba(16,185,129,0.15);
-      --danger: #ef4444;
-      --danger-bg: rgba(239,68,68,0.15);
+      --bg: #080e1a; --panel: #111827; --card: #1a2436;
+      --b: #243044; --bl: #2e3f58;
+      --t: #e2eaf6; --tm: #7a90b0; --td: #4a607e;
+      --ac: #3b82f6; --ag: rgba(59,130,246,.18);
+      --ok: #10b981; --okb: rgba(16,185,129,.14);
+      --er: #f43f5e; --erb: rgba(244,63,94,.14);
     }
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: var(--text-main);
-      margin: 0; padding: 20px;
-      font-size: 14px;
-    }
-    .container { max-width: 1600px; margin: 0 auto; }
-    .setup-panel {
-      background: var(--bg-panel);
-      padding: 20px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      margin-bottom: 20px;
-    }
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 15px;
-    }
-    label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 12px; }
-    input {
-      width: 100%; padding: 8px;
-      background: #162032; border: 1px solid var(--border);
-      border-radius: 6px; color: white;
-    }
-    button {
-      background: var(--accent); color: white; border: none;
-      padding: 10px 20px; border-radius: 6px; cursor: pointer;
-      font-weight: bold;
-    }
-    button:hover { opacity: 0.9; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .loader-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(11, 17, 32, 0.8);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-    }
-    .loader-overlay.active { display: flex; }
-    .loader-spinner {
-      width: 50px; height: 50px;
-      border: 4px solid var(--border);
-      border-top: 4px solid var(--accent);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .loader-text { margin-top: 15px; color: var(--text-main); font-size: 16px; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; }
-    .tab-btn {
-      background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted);
-      padding: 8px 16px; border-radius: 6px; cursor: pointer; white-space: nowrap;
-    }
-    .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; animation: fadeIn 0.3s; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-    .metric-card { background: var(--bg-panel); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
-    .metric-val { font-size: 32px; font-weight: bold; color: var(--accent); margin-bottom: 5px; }
-    .metric-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
-    .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media(max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; } .metrics-row { grid-template-columns: repeat(2, 1fr); } }
-    .section-block { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-    .section-title { font-size: 14px; font-weight: bold; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: var(--text-muted); font-size: 11px; padding: 8px; border-bottom: 2px solid var(--border); }
-    td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .dyn-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
-    .dyn-good { background: var(--success-bg); color: var(--success); }
-    .dyn-bad { background: var(--danger-bg); color: var(--danger); }
-    .export-btn { background: var(--success); margin-top: 20px; width: 100%; }
-    .export-excel-btn { background: #10b981; margin-top: 10px; width: 100%; }
-    .omsu-filter { position: relative; }
-    .omsu-select { width: 100%; padding: 8px; background: #162032; border: 1px solid var(--border); border-radius: 6px; color: white; cursor: pointer; }
-    .omsu-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; max-height: 300px; overflow-y: auto; z-index: 1000; margin-top: 4px; }
-    .omsu-dropdown.show { display: block; }
-    .omsu-option { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-    .omsu-option:hover { background: rgba(255,255,255,0.05); }
-    .omsu-option input { width: auto; margin: 0; }
-    .clear-filter { background: var(--danger); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
-    .clickable-row { cursor: pointer; transition: background 0.2s; }
-    .clickable-row:hover { background: rgba(255,255,255,0.05); }
-    .expand-icon { display: inline-block; transition: transform 0.3s; margin-right: 8px; font-size: 12px; }
-    .expanded .expand-icon { transform: rotate(90deg); }
-    .fact-list { display: none; margin-top: 8px; background: #0f172a; border-radius: 8px; padding: 12px; border: 1px solid var(--border); }
-    .fact-list.show { display: block; }
-    .fact-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #334155; line-height: 1.4; }
-    .fact-item:last-child { border-bottom: none; }
-    .fact-name { flex: 1; margin-right: 12px; }
-    .fact-count { background: var(--bg-panel); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; white-space: nowrap; min-width: 30px; text-align: center; }
-    .omsu-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-    .omsu-tag { background: var(--bg-panel); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 10px; border: 1px solid var(--border); }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;padding:20px}
+    .wrap{max-width:1680px;margin:0 auto}
+
+    .panel{background:var(--panel);border:1px solid var(--b);border-radius:14px;padding:22px 24px;margin-bottom:20px;box-shadow:0 4px 32px rgba(0,0,0,.35)}
+    .hdr{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+    .hdr h2{font-size:18px;font-weight:700}
+    .badge{background:var(--ag);border:1px solid rgba(59,130,246,.35);color:var(--ac);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.6px}
+    .badge.warn{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:#fbbf24}
+
+    /* Mode tabs */
+    .mode-tabs{display:flex;gap:8px;margin-bottom:16px}
+    .mode-tab{padding:7px 16px;border-radius:8px;border:1px solid var(--b);background:var(--card);color:var(--tm);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+    .mode-tab.active{background:var(--ac);color:white;border-color:var(--ac)}
+
+    .fg{display:grid;grid-template-columns:2fr repeat(4,1fr) 1.5fr auto;gap:12px;align-items:end}
+    @media(max-width:1100px){.fg{grid-template-columns:1fr 1fr}}
+    label{display:block;margin-bottom:5px;color:var(--tm);font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+    input[type=date]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;transition:border-color .2s}
+    input[type=date]:focus{outline:none;border-color:var(--ac)}
+    input[type=file]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--tm);font-size:12px;cursor:pointer}
+    input[type=file]::file-selector-button{background:var(--ac);color:white;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;margin-right:8px}
+    .fi{font-size:11px;color:var(--tm);margin-top:4px;min-height:16px}
+
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;white-space:nowrap}
+    .btn-p{background:var(--ac);color:white}
+    .btn-p:hover:not(:disabled){background:#2563eb;box-shadow:0 0 16px rgba(59,130,246,.4)}
+    .btn-s{background:var(--ok);color:white}
+    .btn-s:hover:not(:disabled){background:#059669}
+    .btn-g{background:transparent;color:var(--tm);border:1px solid var(--bl)}
+    .btn-g:hover{background:var(--card);color:var(--t)}
+    .btn-sm{padding:6px 12px;font-size:11px}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .abar{display:flex;gap:10px;margin-top:14px}
+
+    /* Info/warning boxes */
+    .infobox{border-radius:8px;padding:10px 14px;margin-top:12px;font-size:12px;line-height:1.6;display:none}
+    .infobox.show{display:flex;align-items:flex-start;gap:10px}
+    .infobox.tip{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#93c5fd}
+    .infobox.warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24}
+    .infobox.err{background:var(--erb);border:1px solid rgba(244,63,94,.3);color:#fca5a5}
+
+    /* Progress */
+    .pw{margin-top:14px;display:none}
+    .pw.on{display:block}
+    .pl{display:flex;justify-content:space-between;margin-bottom:6px}
+    .pl span{font-size:12px;color:var(--tm)}
+    .pl .pct{color:var(--ac);font-weight:700}
+    .pb{background:var(--card);border-radius:99px;height:6px;overflow:hidden;border:1px solid var(--b)}
+    .pf{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--ac),#60a5fa);transition:width .2s ease;box-shadow:0 0 8px rgba(59,130,246,.5);width:0}
+
+    /* OMSU */
+    .omf{position:relative}
+    .oms{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;user-select:none}
+    .oms:hover{border-color:var(--ac)}
+    .omd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:280px;overflow-y:auto;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+    .omd.show{display:block;animation:drop .15s ease}
+    @keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+    .omo{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px}
+    .omo:hover{background:var(--card)}
+    .omo input{accent-color:var(--ac);width:14px;height:14px}
+    .omo label{margin:0;cursor:pointer;color:var(--t);font-size:12px;text-transform:none;letter-spacing:0;font-weight:400}
+
+    /* Tabs */
+    .tabs{display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
+    .tabs::-webkit-scrollbar{height:4px}
+    .tabs::-webkit-scrollbar-thumb{background:var(--bl);border-radius:2px}
+    .tb{background:var(--panel);border:1px solid var(--b);color:var(--tm);padding:7px 15px;border-radius:8px;cursor:pointer;white-space:nowrap;font-size:12px;font-weight:600;transition:all .2s}
+    .tb:hover{border-color:var(--bl);color:var(--t)}
+    .tb.on{background:var(--ac);color:white;border-color:var(--ac);box-shadow:0 2px 12px rgba(59,130,246,.35)}
+    .tc{display:none;animation:fi .25s ease}
+    .tc.on{display:block}
+    @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+    .mr{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    @media(max-width:900px){.mr{grid-template-columns:repeat(2,1fr)}}
+    .mc{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:16px;transition:border-color .2s,box-shadow .2s}
+    .mc:hover{border-color:var(--bl);box-shadow:0 4px 20px rgba(0,0,0,.25)}
+    .mi{font-size:22px;opacity:.8;flex-shrink:0}
+    .mv{font-size:28px;font-weight:800;color:var(--ac);line-height:1;letter-spacing:-1px}
+    .ml{font-size:11px;color:var(--tm);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+
+    .dg{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:1000px){.dg{grid-template-columns:1fr}}
+    .sb{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:16px;transition:border-color .2s}
+    .sb:hover{border-color:var(--bl)}
+    .st{font-size:11px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between}
+
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;color:var(--td);font-size:10px;padding:6px 8px;border-bottom:1px solid var(--b);font-weight:700;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s}
+    th:hover{color:var(--tm)}
+    th.sa::after{content:' ↑';color:var(--ac)}
+    th.sd::after{content:' ↓';color:var(--ac)}
+    td{padding:7px 8px;border-bottom:1px solid rgba(36,48,68,.6);vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    .cr{cursor:pointer;transition:background .15s}
+    .cr:hover{background:rgba(59,130,246,.04)}
+    .ei{display:inline-block;transition:transform .25s;margin-right:6px;font-size:9px;opacity:.5}
+    .expanded .ei{transform:rotate(90deg);opacity:1}
+    .fr{display:none}
+    .fr.show{display:table-row}
+    .fin{background:rgba(8,14,26,.6);border-radius:8px;padding:10px 12px;margin:4px 0 6px;border:1px solid var(--b)}
+    .fit{color:var(--td);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+    .fitem{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(36,48,68,.5)}
+    .fitem:last-child{border-bottom:none}
+    .fn{flex:1;margin-right:12px;color:var(--tm);line-height:1.4}
+    .fc{background:var(--card);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;min-width:28px;text-align:center}
+
+    .db{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700}
+    .dg2{background:var(--okb);color:var(--ok)}
+    .dr{background:var(--erb);color:var(--er)}
+    .dn{background:rgba(122,144,176,.1);color:var(--tm)}
+    .ot{background:var(--card);color:var(--tm);padding:2px 5px;border-radius:4px;font-size:10px;border:1px solid var(--b)}
+    .ol{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+    .pbw{display:flex;align-items:center;gap:6px}
+    .pbb{flex:1;background:var(--card);border-radius:99px;height:4px;min-width:40px;overflow:hidden}
+    .pbf{height:100%;border-radius:99px;background:var(--ac)}
+    .cc{position:relative;height:190px;margin-top:8px}
+    .smb{display:inline-flex;align-items:center;padding:5px 10px;background:transparent;border:1px dashed var(--b);border-radius:6px;color:var(--td);font-size:11px;cursor:pointer;transition:all .2s;text-align:center}
+    .smb:hover:not(:disabled){border-color:var(--ac);color:var(--ac);background:var(--ag)}
+    .smb:disabled{opacity:.3;cursor:not-allowed}
+    .pg-wrap{}
+    .pg-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-thumb{background:var(--bl);border-radius:3px}
+  
   </style>
 </head>
 <body>
-<div class="loader-overlay" id="loaderOverlay">
-  <div class="loader-spinner"></div>
-  <div class="loader-text" id="loaderText">Подключение к Google Sheets...</div>
-</div>
+<div class="wrap">
+  <div class="panel">
+    <div class="hdr">
+      <h2>📊 Дашборд обращений</h2>
+      <span class="badge" id="statusBadge">Онлайн</span>
+    </div>
 
-<div class="container">
-  <div class="setup-panel">
-    <h2 style="margin:0; color:white;">📊 Дашборд обращений</h2>
-    <div class="form-grid">
+    <div class="fg" style="margin-top:4px">
       <div><label>Период: с</label><input type="date" id="startDate"></div>
       <div><label>Период: по</label><input type="date" id="endDate"></div>
       <div><label>Сравнение: с</label><input type="date" id="compStartDate"></div>
       <div><label>Сравнение: по</label><input type="date" id="compEndDate"></div>
-      <div class="omsu-filter">
+      <div class="omf">
         <label>Фильтр по ОМСУ</label>
-        <div class="omsu-select" onclick="toggleOmsuDropdown()">
-          <span id="omsuPlaceholder">Выберите ОМСУ</span>
-        </div>
-        <div class="omsu-dropdown" id="omsuDropdown"></div>
+        <div class="oms" onclick="toggleOmsu(event)"><span id="omsP">Выберите ОМСУ</span><span style="opacity:.4;font-size:10px">▼</span></div>
+        <div class="omd" id="omsDrop"></div>
       </div>
-      <button id="generateBtn" style="align-self:end;">🚀 Загрузить</button>
+      <div style="display:flex;align-items:flex-end;gap:8px;grid-column:span 1">
+        <button class="btn btn-p" id="genBtn" style="width:100%">🚀 Сформировать</button>
+      </div>
     </div>
-    <button id="exportExcelBtn" class="export-excel-btn" style="display:none;">📥 Выгрузить в Excel</button>
+
+    <div class="pw" id="pw">
+      <div class="pl"><span id="pt">Загрузка данных...</span><span class="pct" id="pp">0%</span></div>
+      <div class="pb"><div class="pf" id="pf"></div></div>
+    </div>
+    <div class="abar" id="abar" style="display:none">
+      <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
+      <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
+    </div>
   </div>
-  <div id="dashboardContainer" style="display:none;">
-    <div class="tabs" id="tabsNav"></div>
-    <div id="tabsContent"></div>
-    <button id="exportBtn" class="export-btn">📥 Экспорт в HTML</button>
+
+  <div id="dash" style="display:none">
+    <div class="tabs" id="tabNav"></div>
+    <div id="tabCont"></div>
   </div>
 </div>
 
 <script>
-const OMSU_LIST = ['Долгопрудный','Подольск','Наро-Фоминский','Щелково','Павлово-Посадский','Люберцы','Истра','Мытищи','Домодедово','Химки','Электросталь','Красногорск','Жуковский','Ленинский','Реутов','Дмитровский','Котельники','Богородский','Солнечногорск','Ступино','Егорьевск','Луховицы','Балашиха','Воскресенск','Клин','Одинцовский','Дубна','Сергиево-Посадский','Раменский','Лобня','Рузский','Серпухов','Фрязино','Королёв','Пушкинский','Талдомский','Кашира','Коломна','Черноголовка','Лосино-Петровский','Чехов','Зарайск','Серебряные Пруды','Шатура','Власиха','Шаховская','Лыткарино','Орехово-Зуевский','Можайский','Краснознаменск','Волоколамский','Лотошино','Бронницы','Звездный городок','Молодежный','Восход'];
+// ═══════════════════════════════════
+// STATE
+// ═══════════════════════════════════
+const OMSU_LIST=['Долгопрудный','Подольск','Наро-Фоминский','Щелково','Павлово-Посадский','Люберцы','Истра','Мытищи','Домодедово','Химки','Электросталь','Красногорск','Жуковский','Ленинский','Реутов','Дмитровский','Котельники','Богородский','Солнечногорск','Ступино','Егорьевск','Луховицы','Балашиха','Воскресенск','Клин','Одинцовский','Дубна','Сергиево-Посадский','Раменский','Лобня','Рузский','Серпухов','Фрязино','Королёв','Пушкинский','Талдомский','Кашира','Коломна','Черноголовка','Лосино-Петровский','Чехов','Зарайск','Серебряные Пруды','Шатура','Власиха','Шаховская','Лыткарино','Орехово-Зуевский','Можайский','Краснознаменск','Волоколамский','Лотошино','Бронницы','Звездный городок','Молодежный','Восход'];
+let selOmsu=new Set(), curData=null, curPer=null;
+let renderedTabs=new Set(), charts={}, lazyD=null, lazyDy=null;
+let curMode='csv';
 
-let currentData = null;
-let currentPeriods = null;
-let selectedOmsu = new Set();
-let rawData = [];
+// For Excel export: store raw filtered rows compactly
+// Keys we need for the dashboard (we store ALL columns for export)
+let exportRows=[]; // {cols}
 
-function showLoader(text) {
-  document.getElementById('loaderText').textContent = text || 'Загрузка данных...';
-  document.getElementById('loaderOverlay').classList.add('active');
+// ═══════════════════════════════════
+// MODE SWITCH
+// ═══════════════════════════════════
+function setMode(m) {
+  curMode=m;
+  document.getElementById('modeCSV').classList.toggle('active',m==='csv');
+  document.getElementById('modeXLSX').classList.toggle('active',m==='xlsx');
+  document.getElementById('csvHint').style.display=m==='csv'?'':'none';
+  document.getElementById('csvHint').classList.toggle('show',m==='csv');
+  document.getElementById('xlsxWarn').classList.toggle('show',m==='xlsx');
+  document.getElementById('modeBadge').textContent=m==='csv'?'CSV — Streaming':'XLSX';
+  document.getElementById('modeBadge').classList.toggle('warn',m==='xlsx');
+  const fi=document.getElementById('fileInput');
+  fi.accept=m==='csv'?'.csv':'.xlsx,.xls';
+  document.getElementById('fileLabelText').textContent=m==='csv'?'Файл CSV':'Файл Excel';
+  document.getElementById('fileInfo').textContent='';
+  if(m==='xlsx') loadXlsxScript();
 }
-function hideLoader() {
-  document.getElementById('loaderOverlay').classList.remove('active');
-}
-function initOmsuDropdown() {
-  const dropdown = document.getElementById('omsuDropdown');
-  dropdown.innerHTML = OMSU_LIST.sort().map(omsu => `
-    <div class="omsu-option" onclick="toggleOmsu('${omsu}', event)">
-      <input type="checkbox" id="omsu-${omsu.replace(/\s+/g,'-')}" value="${omsu}">
-      <label for="omsu-${omsu.replace(/\s+/g,'-')}" style="margin:0; cursor:pointer;">${omsu}</label>
-    </div>`).join('');
-}
-function toggleOmsuDropdown() { document.getElementById('omsuDropdown').classList.toggle('show'); }
-function toggleOmsu(omsu, event) {
-  event.stopPropagation();
-  const checkbox = document.getElementById(`omsu-${omsu.replace(/\s+/g,'-')}`);
-  if (checkbox.checked) selectedOmsu.add(omsu); else selectedOmsu.delete(omsu);
-  updateOmsuDisplay();
-}
-function updateOmsuDisplay() {
-  const placeholder = document.getElementById('omsuPlaceholder');
-  const count = selectedOmsu.size;
-  if (count === 0) placeholder.textContent = 'Выберите ОМСУ';
-  else if (count === 1) placeholder.textContent = Array.from(selectedOmsu)[0];
-  else placeholder.textContent = `Выбрано: ${count}`;
-}
-document.addEventListener('click', (e) => { if (!e.target.closest('.omsu-filter')) document.getElementById('omsuDropdown').classList.remove('show'); });
 
-document.getElementById('generateBtn').onclick = async () => {
-  const s = document.getElementById('startDate').value;
-  const e = document.getElementById('endDate').value;
-  const cs = document.getElementById('compStartDate').value;
-  const ce = document.getElementById('compEndDate').value;
-  
-  if (!s || !e || !cs || !ce) { alert('Заполните все 4 поля с датами'); return; }
+let xlsxLoaded=false;
+function loadXlsxScript() {
+  if(xlsxLoaded) return;
+  xlsxLoaded=true;
+  const s=document.createElement('script');
+  s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+  document.head.appendChild(s);
+}
 
-  showLoader('Подключение к Google Sheets...');
-  document.getElementById('generateBtn').disabled = true;
+// ═══════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════
+const $ = id => document.getElementById(id);
+function prog(pct,txt) { $('pf').style.width=pct+'%'; $('pp').textContent=Math.round(pct)+'%'; if(txt) $('pt').textContent=txt; }
+function showProg(t){ $('pw').classList.add('on'); prog(0,t); }
+function hideProg(){ $('pw').classList.remove('on'); }
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
 
-  try {
-    const res = await fetch('/api', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ start: s, end: e, compStart: cs, compEnd: ce, omsuFilter: Array.from(selectedOmsu) })
+// ═══════════════════════════════════
+// OMSU
+// ═══════════════════════════════════
+function initOmsu() {
+  $('omsDrop').innerHTML=OMSU_LIST.slice().sort().map(o=>{
+    const id=`o-${o.replace(/[\s']+/g,'-')}`;
+    return `<div class="omo" onclick="togO('${o.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${o}</label></div>`;
+  }).join('');
+}
+function toggleOmsu(e){e.stopPropagation();$('omsDrop').classList.toggle('show')}
+function togO(o,e){e.stopPropagation();const c=$(`o-${o.replace(/[\s']+/g,'-')}`);if(c.checked)selOmsu.add(o);else selOmsu.delete(o);updO()}
+function updO(){const n=selOmsu.size;$('omsP').textContent=n===0?'Выберите ОМСУ':n===1?[...selOmsu][0]:`Выбрано: ${n}`}
+document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
+
+document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
+
+// ═══════════════════════════════════
+// ═══════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════
+
+function prog(pct,txt) { $('pf').style.width=pct+'%'; $('pp').textContent=Math.round(pct)+'%'; if(txt) $('pt').textContent=txt; }
+function showProg(t){ $('pw').classList.add('on'); prog(0,t); }
+function hideProg(){ $('pw').classList.remove('on'); }
+
+
+
+// ═══════════════════════════════════
+// ═══════════════════════════════════
+// RENDER
+// ═══════════════════════════════════
+function rdyn(pct,abs){
+  if(pct===0&&abs===0)return'<span class="db dn">→ 0</span>';
+  const cls=abs<=0?'dg2':'dr',ar=abs>0?'↑':'↓',sg=abs>0?'+':'';
+  return`<span class="db ${cls}">${ar} ${sg}${pct}%<span style="opacity:.6;font-weight:400"> (${sg}${abs})</span></span>`;
+}
+const esc=s=>String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+
+window.doSort=function(th,ci,type){
+  const tb=th.closest('table').querySelector('tbody');
+  const rows=[...tb.querySelectorAll('tr.dr2')];
+  const asc=th.classList.contains('sa');
+  th.closest('thead').querySelectorAll('th').forEach(t=>t.classList.remove('sa','sd'));
+  th.classList.add(asc?'sd':'sa');
+  rows.sort((a,b)=>{
+    const va=a.cells[ci]?.dataset.val||'',vb=b.cells[ci]?.dataset.val||'';
+    const na=type==='num'?(parseFloat(va)||0):va.toLowerCase();
+    const nb=type==='num'?(parseFloat(vb)||0):vb.toLowerCase();
+    return asc?(na>nb?1:-1):(na<nb?1:-1);
+  });
+  rows.forEach(r=>{tb.appendChild(r);const n=r.nextElementSibling;if(n?.classList.contains('fr'))tb.appendChild(n);});
+};
+window.togExp=function(row,id){row.classList.toggle('expanded');$(id)?.classList.toggle('show')};
+
+const PAGE=10;
+function _getHiddenRows(tbl){return tbl?[...tbl.querySelectorAll('tr.mr2')]:[]}
+function _updPagBtns(wrap){
+  const tbl=wrap.querySelector('table');
+  const all=_getHiddenRows(tbl);
+  if(!all.length)return;
+  const vis=all.filter(r=>r.style.display!=='none').length;
+  const total=all.length;
+  const remaining=total-vis;
+  const btnP=wrap.querySelector('.pg-plus');
+  const btnM=wrap.querySelector('.pg-minus');
+  const btnC=wrap.querySelector('.pg-collapse');
+  if(btnP){btnP.textContent='▼ +10'+(remaining>0?' (ещё '+remaining+')':'');btnP.disabled=remaining<=0;}
+  if(btnM){btnM.style.display=vis>0?'':'none';}
+  if(btnC){btnC.style.display=vis>0?'':'none';}
+}
+window.pgPlus=function(btn){
+  const wrap=btn.closest('.pg-wrap');
+  const tbl=wrap?.querySelector('table');
+  if(!tbl)return;
+  let shown=0;
+  for(const r of _getHiddenRows(tbl)){
+    if(r.style.display==='none'){r.style.display='';shown++;if(shown>=PAGE)break;}
+  }
+  _updPagBtns(wrap);
+};
+window.pgMinus=function(btn){
+  const wrap=btn.closest('.pg-wrap');
+  const tbl=wrap?.querySelector('table');
+  if(!tbl)return;
+  const vis=[..._getHiddenRows(tbl)].filter(r=>r.style.display!=='none').reverse();
+  let hidden=0;
+  for(const r of vis){
+    r.style.display='none';
+    const nxt=r.nextElementSibling;
+    if(nxt&&nxt.classList.contains('fr')){nxt.classList.remove('show');r.classList.remove('expanded');}
+    hidden++;if(hidden>=PAGE)break;
+  }
+  _updPagBtns(wrap);
+};
+window.pgCollapse=function(btn){
+  const wrap=btn.closest('.pg-wrap');
+  const tbl=wrap?.querySelector('table');
+  if(!tbl)return;
+  _getHiddenRows(tbl).forEach(r=>{r.style.display='none';const nxt=r.nextElementSibling;if(nxt&&nxt.classList.contains('fr')){nxt.classList.remove('show');r.classList.remove('expanded');}});
+  _updPagBtns(wrap);
+};
+// legacy stub — no longer used but keep for exported HTML
+window.togMore=function(){};
+
+function mkTable(cols,body){
+  const ths=cols.map((h,i)=>`<th onclick="doSort(this,${i},'${h.t||'num'}')">${h.l}</th>`).join('');
+  return`<table><thead><tr>${ths}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderTab(item,idx,daily){
+  if(renderedTabs.has(idx))return;
+  renderedTabs.add(idx);
+  const el=$(`tab-${idx}`);if(!el)return;
+  const dp=Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100);
+  const maxC=item.subs[0]?.count||1;
+  const I_F=10,I_O=10,I_A=10;
+
+  const SUB_INIT=10;
+  const subRows=item.subs.map((s,i)=>{
+    const fh=s.facts.length>0?s.facts.map(f=>`<div class="fitem"><span class="fn">${f[0]}</span><span class="fc">${f[1]}</span></div>`).join(''):'<span style="color:var(--td);font-size:11px">Нет данных</span>';
+    const hiddenCls=i>=SUB_INIT?' mr2" style="display:none':'"';
+    return`<tr class="dr2 cr${i>=SUB_INIT?' mr2':''}" style="${i>=SUB_INIT?'display:none':''}" onclick="togExp(this,'sf-${idx}-${i}')">
+      <td data-val="${esc(s.name)}"><span class="ei">▶</span>${s.name}</td>
+      <td data-val="${s.count}">${s.count.toLocaleString('ru')}</td>
+      <td data-val="${s.pctGroup}"><div class="pbw"><span style="min-width:26px">${s.pctGroup}%</span><div class="pbb"><div class="pbf" style="width:${Math.round(s.count/maxC*100)}%"></div></div></div></td>
+      <td data-val="${s.dynAbs}">${rdyn(s.dynPct,s.dynAbs)}</td></tr>
+    <tr class="${i>=SUB_INIT?'fr mr2':'fr'}" style="${i>=SUB_INIT?'display:none':''}" id="sf-${idx}-${i}"><td colspan="4" style="padding:2px 8px 8px 24px"><div class="fin"><div class="fit">📋 Факты</div>${fh}</div></td></tr>`;
+  }).join('');
+  const subRemaining=item.subs.length-SUB_INIT;
+  const subMoreBtn=subRemaining>0?`<div class="pg-btns">
+    <button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${subRemaining})</button>
+    <button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button>
+    <button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button>
+  </div>`:'';
+  const subR=subRows;
+
+  function pgBtns(remaining,total){
+    if(total<=0)return'';
+    return`<div class="pg-btns">
+      <button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${remaining})</button>
+      <button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button>
+      <button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button>
+    </div>`;
+  }
+  function moreR(arr,init,fn){
+    const v=arr.slice(0,init).map(fn).join('');
+    const hidden=arr.length>init?arr.slice(init).map(x=>{const t=fn(x);return t.replace(/^<tr[^>]*>/,'<tr class="dr2 mr2" style="display:none">');}).join(''):'';
+    const remaining=arr.length-init;
+    const b=remaining>0?pgBtns(remaining,arr.length-init):'';
+    return{r:v+hidden,b};
+  }
+
+  const fct=moreR(item.facts,I_F,f=>`<tr class="dr2"><td data-val="${esc(f.name)}">${f.name}</td><td data-val="${f.count}">${f.count.toLocaleString('ru')}</td><td data-val="${f.dynAbs}">${rdyn(f.dynPct,f.dynAbs)}</td></tr>`);
+  const oms=moreR(item.omsus,I_O,o=>`<tr class="dr2"><td data-val="${esc(o.name)}">${o.name}</td><td data-val="${o.count}">${o.count.toLocaleString('ru')}</td><td data-val="${o.dynAbs}">${rdyn(o.dynPct,o.dynAbs)}</td><td data-val="${esc(o.mainSub)}">${o.mainSub} <small style="color:var(--tm)">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`);
+  const adr=moreR(item.addrs,I_A,a=>`<tr class="dr2"><td data-val="${esc(a.address)}">${a.address}</td><td data-val="${a.count}">${a.count.toLocaleString('ru')}</td><td data-val="${esc(a.mainSub)}">${a.mainSub} <small style="color:var(--tm)">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`);
+
+  const mailR=item.mails.slice(0,10).map((m,i)=>{
+    const oh=m.omsus.length>0?`<div class="ol">${m.omsus.map(o=>`<span class="ot">${o}</span>`).join('')}</div>`:'';
+    const fh=m.facts.length>0?m.facts.map(f=>`<div class="fitem"><span class="fn">${f[0]}</span><span class="fc">${f[1]}</span></div>`).join(''):'<span style="color:var(--td);font-size:11px">Нет данных</span>';
+    return`<tr class="dr2 cr" onclick="togExp(this,'mf-${idx}-${i}')">
+      <td data-val="${esc(m.email)}" style="max-width:240px"><span class="ei">▶</span><span style="word-break:break-all">${m.email}</span>${oh}</td>
+      <td data-val="${m.count}" style="text-align:center;font-weight:700">${m.count}</td></tr>
+    <tr class="fr" id="mf-${idx}-${i}"><td colspan="2" style="padding:2px 8px 8px 24px"><div class="fin"><div class="fit">📋 Факты</div>${fh}</div></td></tr>`;
+  }).join('');
+  const mailMoreBtn=item.mails.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.mails.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+  const mailHiddenRows=item.mails.slice(10).map((m,i)=>{
+    const i2=i+10;
+    const oh=m.omsus.length>0?`<div class="ol">${m.omsus.map(o=>`<span class="ot">${o}</span>`).join('')}</div>`:'';
+    const fh=m.facts.length>0?m.facts.map(f=>`<div class="fitem"><span class="fn">${f[0]}</span><span class="fc">${f[1]}</span></div>`).join(''):'<span style="color:var(--td);font-size:11px">Нет данных</span>';
+    return`<tr class="dr2 cr mr2" style="display:none" onclick="togExp(this,'mf-${idx}-${i2}')">
+      <td data-val="${esc(m.email)}" style="max-width:240px"><span class="ei">►</span><span style="word-break:break-all">${m.email}</span>${oh}</td>
+      <td data-val="${m.count}" style="text-align:center;font-weight:700">${m.count}</td></tr>
+    <tr class="fr" id="mf-${idx}-${i2}"><td colspan="2" style="padding:2px 8px 8px 24px"><div class="fin"><div class="fit">📋 Факты</div>${fh}</div></td></tr>`;
+  }).join('');
+  const mailRFull=mailR+mailHiddenRows;
+
+  const cid=`ch-${idx}`;
+  el.innerHTML=`
+    <div class="mr">
+      <div class="mc"><div class="mi">📋</div><div><div class="mv">${item.total.toLocaleString('ru')}</div><div class="ml">Всего обращений</div></div></div>
+      <div class="mc"><div class="mi">📈</div><div><div class="mv" style="font-size:17px;margin-top:3px">${rdyn(dp,item.total-item.compTotal)}</div><div class="ml">Динамика к периоду</div></div></div>
+      <div class="mc"><div class="mi">🗂️</div><div><div class="mv">${item.subs.length}</div><div class="ml">Подтем</div></div></div>
+      <div class="mc"><div class="mi">🏢</div><div><div class="mv">${item.omsus.length}</div><div class="ml">ОМСУ</div></div></div>
+    </div>
+    <div style="margin-bottom:16px"><div class="sb"><div class="st"><span>📅 Динамика по дням</span></div><div class="cc"><canvas id="${cid}"></canvas></div></div></div>
+    <div class="dg">
+      <div class="sb"><div class="st"><span>📌 Подтемы (${item.subs.length})</span></div><div class="pg-wrap">${mkTable([{l:'Подтема',t:'str'},{l:'Кол-во'},{l:'%'},{l:'Динамика'}],subR)}${subMoreBtn}</div></div>
+      <div class="sb"><div class="st"><span>⚠️ Факты (${item.facts.length})</span></div><div class="pg-wrap">${mkTable([{l:'Факт',t:'str'},{l:'Кол-во'},{l:'Динамика'}],fct.r)}${fct.b}</div></div>
+      <div class="sb"><div class="st"><span>🏢 ОМСУ (${item.omsus.length})</span></div><div class="pg-wrap">${mkTable([{l:'ОМСУ',t:'str'},{l:'Кол-во'},{l:'Динамика'},{l:'Гл. подтема',t:'str'}],oms.r)}${oms.b}</div></div>
+      <div class="sb"><div class="st"><span>✉️ Заявители (${item.mails.length})</span></div><div class="pg-wrap">${mkTable([{l:'Email / ОМСУ',t:'str'},{l:'Кол-во'}],mailRFull)}${mailMoreBtn}</div></div>
+      <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Адреса (${item.addrs.length})</span></div><div class="pg-wrap">${mkTable([{l:'Адрес',t:'str'},{l:'Кол-во'},{l:'Гл. подтема',t:'str'}],adr.r)}${adr.b}</div></div>
+    </div>`;
+
+  setTimeout(()=>{
+    const canvas=$(cid);if(!canvas)return;
+    if(charts[cid])charts[cid].destroy();
+    const days=Object.keys(daily).sort(),vals=days.map(d=>daily[d]?.[item.name]||0);
+    charts[cid]=new Chart(canvas,{type:'line',
+      data:{labels:days,datasets:[{data:vals,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',fill:true,tension:.4,pointRadius:days.length>60?0:3,pointHoverRadius:5,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,.95)',borderColor:'#243044',borderWidth:1,titleColor:'#7a90b0',bodyColor:'#e2eaf6',callbacks:{label:t=>`Обращений: ${t.raw}`}}},
+        scales:{x:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',maxTicksLimit:12,font:{size:10}}},y:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}}}
     });
-    
-    showLoader('Обработка данных...');
-    const json = await res.json();
-    if (json.error) throw new Error(json.error);
-    
-    currentData = json.data;
-    currentPeriods = { start: s, end: e, compStart: cs, compEnd: ce };
-    rawData = json.rawData || [];
-    
-    if (currentData.length === 0) {
-      alert('Нет данных за указанный период');
-    } else {
-      renderDashboard(currentData);
-      document.getElementById('dashboardContainer').style.display = 'block';
-      document.getElementById('exportExcelBtn').style.display = 'block';
-    }
-  } catch (err) {
-    alert('Ошибка: ' + err.message);
-  } finally {
-    hideLoader();
-    document.getElementById('generateBtn').disabled = false;
-  }
-};
+  },60);
+}
 
-function renderDashboard(data) {
-  const nav = document.getElementById('tabsNav');
-  const cont = document.getElementById('tabsContent');
-  nav.innerHTML = ''; cont.innerHTML = '';
-  
-  data.forEach((item, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'tab-btn' + (i===0?' active':'');
-    btn.textContent = `${item.name} (${item.total})`;
-    btn.onclick = () => switchTab(i);
+function renderDash(data,daily){
+  const nav=$('tabNav'),cont=$('tabCont');
+  nav.innerHTML='';cont.innerHTML='';
+  renderedTabs.clear();lazyD=data;lazyDy=daily;
+  data.forEach((item,i)=>{
+    const btn=document.createElement('button');
+    btn.className='tb'+(i===0?' on':'');
+    btn.textContent=`${item.name} (${item.total.toLocaleString('ru')})`;
+    btn.onclick=()=>switchTab(i);
     nav.appendChild(btn);
-    
-    const div = document.createElement('div');
-    div.className = 'tab-content' + (i===0?' active':'');
-    div.id = `tab-${i}`;
-    
-    // === ПОДТЕМЫ С РАСКРЫВАЮЩИМИСЯ ФАКТАМИ ===
-    const htmlSub = item.subs.map((s, idx) => `
-      <tr class="clickable-row" onclick="toggleSubFacts(this, ${i}, ${idx})" style="cursor:pointer;">
-        <td><span class="expand-icon" id="sub-icon-${i}-${idx}">▶</span>${s.name}</td>
-        <td>${s.count}</td>
-        <td>${s.pctGroup}%</td>
-        <td>${renderDyn(s.dynPct, s.dynAbs)}</td>
-      </tr>
-      <tr style="display:none;" id="sub-row-${i}-${idx}">
-        <td colspan="4" style="padding:0 8px 8px 8px;">
-          <div class="fact-list" id="sub-list-${i}-${idx}">
-            <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты в подтеме:</strong>
-            ${s.facts.map(f => `<div class="fact-item"><span class="fact-name">${f[0]}</span><span class="fact-count">${f[1]}</span></div>`).join('')}
-          </div>
-        </td>
-      </tr>
-    `).join('');
-    
-    const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
-    const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
-    
-    const htmlMail = item.mails.map(m => `
-      <tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;">
-        <td style="max-width:250px;"><span class="expand-icon">▶</span>${m.email}<br><small>${m.omsus.length > 0 ? m.omsus.join(', ') : '-'}</small></td>
-        <td style="text-align:center;font-weight:bold;">${m.count}</td>
-        <td style="color:#94a3b8;font-size:12px;">Нажмите</td>
-      </tr>
-      <tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>
-    `).join('');
-    
-    const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
-    
-    div.innerHTML = `
-      <div class="metrics-row">
-        <div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div>
-        <div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div>
-        <div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div>
-        <div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div>
-      </div>
-      <div class="dashboard-grid">
-        <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
-        <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
-        <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
-        <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div>
-        <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
-      </div>
-    `;
-    cont.appendChild(div);
+    const div=document.createElement('div');
+    div.className='tc'+(i===0?' on':'');div.id=`tab-${i}`;cont.appendChild(div);
   });
+  renderTab(data[0],0,daily);
+}
+function switchTab(i){
+  document.querySelectorAll('.tb').forEach((b,j)=>b.classList.toggle('on',j===i));
+  document.querySelectorAll('.tc').forEach((c,j)=>c.classList.toggle('on',j===i));
+  renderTab(lazyD[i],i,lazyDy);
 }
 
-function renderDyn(pct, abs) {
-  if (pct === 0) return '<span class="dyn-badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;">→ 0</span>';
-  const isGood = abs <= 0;
-  const cls = isGood ? 'dyn-good' : 'dyn-bad';
-  const arrow = abs > 0 ? '↑' : '↓';
-  const sign = abs > 0 ? '+' : '';
-  return `<span class="dyn-badge ${cls}">${arrow} ${sign}${pct}% (${sign}${abs})</span>`;
+// ═══════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════
+function saveS(){try{sessionStorage.setItem('dv4',JSON.stringify({s:$('startDate').value,e:$('endDate').value,cs:$('compStartDate').value,ce:$('compEndDate').value,omsu:[...selOmsu],mode:curMode}));}catch(_){}}
+function loadS(){
+  try{
+    const c=JSON.parse(sessionStorage.getItem('dv4')||'null');if(!c)return;
+    ['s','e','cs','ce'].forEach((k,i)=>{const ids=['startDate','endDate','compStartDate','compEndDate'];if(c[k])$(ids[i]).value=c[k];});
+    if(c.omsu?.length){selOmsu=new Set(c.omsu);c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});updO();}
+    if(c.mode&&c.mode!==curMode)setMode(c.mode);
+  }catch(_){}
 }
 
-function switchTab(idx) {
-  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
-  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
-}
+// ═══════════════════════════════════
+// FILE INFO
+// ═══════════════════════════════════
+$('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(f)$('fileInfo').textContent=`${f.name} · ${(f.size/1024/1024).toFixed(1)} МБ`;
+});
 
-// === ФУНКЦИЯ ДЛЯ ПОДТЕМ ===
-window.toggleSubFacts = function(row, groupIdx, subIdx) {
-  row.classList.toggle('expanded');
-  const factRow = document.getElementById(`sub-row-${groupIdx}-${subIdx}`);
-  const factList = document.getElementById(`sub-list-${groupIdx}-${subIdx}`);
-  const icon = document.getElementById(`sub-icon-${groupIdx}-${subIdx}`);
-  if (factRow.style.display === 'none') {
-    factRow.style.display = 'table-row';
-    if(factList) factList.classList.add('show');
-    if(icon) icon.style.transform = 'rotate(90deg)';
-  } else {
-    factRow.style.display = 'none';
-    if(factList) factList.classList.remove('show');
-    if(icon) icon.style.transform = 'rotate(0deg)';
-  }
-};
+// ═══════════════════════════════════
+// MAIN
+// ═══════════════════════════════════
+$('genBtn').onclick=async()=>{
+  const file=$('fileInput').files[0];
+  const s=$('startDate').value,e=$('endDate').value;
+  const cs=$('compStartDate').value,ce=$('compEndDate').value;
+  if(!file){alert('Выберите файл');return;}
+  if(!s||!e||!cs||!ce){alert('Заполните все 4 даты');return;}
 
-window.toggleFacts = function(row) {
-  row.classList.toggle('expanded');
-  const factRow = row.nextElementSibling;
-  const factList = factRow.querySelector('.fact-list');
-  if (factRow.style.display === 'none') {
-    factRow.style.display = 'table-row';
-    if(factList) factList.classList.add('show');
-    row.querySelector('.expand-icon').style.transform = 'rotate(90deg)';
-  } else {
-    factRow.style.display = 'none';
-    if(factList) factList.classList.remove('show');
-    row.querySelector('.expand-icon').style.transform = 'rotate(0deg)';
-  }
-};
+  saveS();
+  $('genBtn').disabled=true;
+  $('dash').style.display='none';
+  $('abar').style.display='none';
+  showProg('Запуск...');
 
-function parseDate(val) {
-  if (!val) return null;
-  let d = val instanceof Date ? val : new Date(val);
-  return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
-}
+  try{
+    let mainG,compG,daily,rowCount;
 
-document.getElementById('exportExcelBtn').onclick = () => {
-  if (!rawData.length) { alert('Нет данных для выгрузки'); return; }
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-  if (!startDate || !endDate) { alert('Укажите период'); return; }
-  const filtered = rawData.filter(r => {
-    const d = parseDate(r['Дата (первого взятия в работу)']);
-    return d && d >= startDate && d <= endDate && (selectedOmsu.size === 0 || selectedOmsu.has((r['ОМСУ'] || '').trim()));
-  });
-  if (!filtered.length) { alert('Нет данных за период'); return; }
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(filtered);
-  XLSX.utils.book_append_sheet(wb, ws, 'Данные');
-  XLSX.writeFile(wb, `export_${startDate}_${endDate}.xlsx`);
-};
-
-document.getElementById('exportBtn').onclick = () => {
-  if (!currentData) return;
-  const css = document.querySelector('style').outerHTML;
-  let tabsHtml = '<div class="tabs">';
-  let contentHtml = '<div id="tabsContent">';
-  
-  currentData.forEach((item, i) => {
-    tabsHtml += `<button class="tab-btn${i===0?' active':''}" onclick="switchTab(${i})">${item.name} (${item.total})</button>`;
-    
-    const htmlSub = item.subs.map((s, idx) => `
-      <tr class="clickable-row" onclick="toggleSubFacts(this, ${i}, ${idx})" style="cursor:pointer;">
-        <td><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${s.name}</td>
-        <td>${s.count}</td>
-        <td>${s.pctGroup}%</td>
-        <td>${renderDyn(s.dynPct, s.dynAbs)}</td>
-      </tr>
-      <tr style="display:none;"><td colspan="4" style="padding:0 8px 8px 8px;">
-        <div class="fact-list" style="display:none;margin-top:8px;background:#0f172a;border-radius:8px;padding:12px;border:1px solid #334155;">
-          <strong style="color:#94a3b8;font-size:11px;display:block;margin-bottom:8px;">📋 Факты в подтеме:</strong>
-          ${s.facts.map(f => `<div class="fact-item" style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #334155;"><span style="flex:1;margin-right:12px;">${f[0]}</span><span style="background:#1e293b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;white-space:nowrap;text-align:center;min-width:30px;">${f[1]}</span></div>`).join('')}
-        </div>
-      </td></tr>
-    `).join('');
-    
-    const htmlFact = item.facts.map(f => `<tr><td>${f.name}</td><td>${f.count}</td><td>${renderDyn(f.dynPct, f.dynAbs)}</td></tr>`).join('');
-    const htmlOmsu = item.omsus.map(o => `<tr><td>${o.name}</td><td>${o.count}</td><td>${renderDyn(o.dynPct, o.dynAbs)}</td><td>${o.mainSub} <small style="color:#94a3b8">(${o.mainSubCnt}, ${o.mainSubPct}%)</small></td></tr>`).join('');
-    const htmlMail = item.mails.map(m => `<tr class="clickable-row" onclick="toggleFacts(this)" style="cursor:pointer;"><td><span class="expand-icon" style="display:inline-block;transition:transform 0.3s;">▶</span>${m.email}</td><td>${m.count}</td><td style="color:#94a3b8;font-size:12px;">Нажмите</td></tr><tr style="display:none;"><td colspan="3" style="padding:0;"><div class="fact-list" style="padding:10px;background:#0f172a;border-radius:6px;margin-top:5px;"><strong>Факты:</strong>${m.facts.map(f => `<div class="fact-item"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('')}</div></td></tr>`).join('');
-    const htmlAddr = item.addrs.map(a => `<tr><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub} <small style="color:#94a3b8">(${a.mainSubCnt}, ${a.mainSubPct}%)</small></td></tr>`).join('');
-    
-    contentHtml += `
-      <div class="tab-content${i===0?' active':''}" id="tab-${i}">
-        <div class="metrics-row">
-          <div class="metric-card"><div class="metric-val">${item.total}</div><div class="metric-label">Всего обращений</div></div>
-          <div class="metric-card"><div class="metric-val">${renderDyn(Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100), item.total-item.compTotal)}</div><div class="metric-label">Динамика к периоду</div></div>
-          <div class="metric-card"><div class="metric-val">${item.subs.length}</div><div class="metric-label">Подтем</div></div>
-          <div class="metric-card"><div class="metric-val">${item.omsus.length}</div><div class="metric-label">ОМСУ</div></div>
-        </div>
-        <div class="dashboard-grid">
-          <div class="section-block"><div class="section-title">📌 Топ-5 Подтем</div><table><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr>${htmlSub}</table></div>
-          <div class="section-block"><div class="section-title">⚠️ Топ-5 Фактов</div><table><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr>${htmlFact}</table></div>
-          <div class="section-block"><div class="section-title">🏢 Топ-10 ОМСУ</div><table><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr>${htmlOmsu}</table></div>
-          <div class="section-block"><div class="section-title">✉️ Топ-10 Заявителей</div><table><tr><th>Email</th><th>Кол-во</th><th>Факты</th></tr>${htmlMail}</table></div>
-          <div class="section-block" style="grid-column:1/-1"><div class="section-title">📍 Топ-10 Адресов</div><table><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr>${htmlAddr}</table></div>
-        </div>
-      </div>`;
-  });
-  
-  tabsHtml += '</div>'; contentHtml += '</div>';
-  
-  const js = `
-    function switchTab(idx) {
-      document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
-      document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===idx));
+    if(curMode==='csv'){
+      // True streaming — never loads all rows into memory
+      const res=await streamCSV(file,s,e,cs,ce,selOmsu,true);
+      mainG=res.mainG;compG=res.compG;daily=res.daily;rowCount=res.rowCount;
+    } else {
+      if(typeof XLSX==='undefined'){alert('XLSX не загружен, подождите секунду и попробуйте снова');$('genBtn').disabled=false;hideProg();return;}
+      const res=await streamXLSX(file,s,e,cs,ce,selOmsu);
+      mainG=res.mainG;compG=res.compG;daily=res.daily;rowCount=res.rowCount;
     }
-    window.toggleFacts = function(row) {
-      row.classList.toggle('expanded');
-      const factRow = row.nextElementSibling;
-      const factList = factRow.querySelector('.fact-list');
-      const icon = row.querySelector('.expand-icon');
-      if (factRow.style.display === 'none') {
-        factRow.style.display = 'table-row';
-        if(factList) factList.style.display = 'block';
-        if(icon) icon.style.transform = 'rotate(90deg)';
-      } else {
-        factRow.style.display = 'none';
-        if(factList) factList.style.display = 'none';
-        if(icon) icon.style.transform = 'rotate(0deg)';
-      }
-    };
-    window.toggleSubFacts = function(row, groupIdx, subIdx) {
-      row.classList.toggle('expanded');
-      const factRow = row.nextElementSibling;
-      const factList = factRow.querySelector('.fact-list');
-      const icon = row.querySelector('.expand-icon');
-      if (factRow.style.display === 'none') {
-        factRow.style.display = 'table-row';
-        if(factList) factList.style.display = 'block';
-        if(icon) icon.style.transform = 'rotate(90deg)';
-      } else {
-        factRow.style.display = 'none';
-        if(factList) factList.style.display = 'none';
-        if(icon) icon.style.transform = 'rotate(0deg)';
-      }
-    };
-  `;
-  
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Экспорт Дашборда</title>${css}</head><body style="margin:20px;background:#0b1120;color:#f1f5f9;font-family:sans-serif;"><h2>📊 Дашборд обращений</h2><p>Период: ${currentPeriods.start} - ${currentPeriods.end}</p>${tabsHtml}${contentHtml}<script>${js}<\/script></body></html>`;
-  const blob = new Blob([html], {type:'text/html'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `dashboard_${currentPeriods.start}_${currentPeriods.end}.html`;
-  a.click();
+
+    prog(90,'Формирование дашборда...');await delay(0);
+    const data=processData(mainG,compG);
+    if(!data.length){alert('Нет данных за указанный период');return;}
+
+    $('fileInfo').textContent=`${file.name} · ${rowCount.toLocaleString('ru')} строк · ${(file.size/1024/1024).toFixed(1)} МБ`;
+    curData=data;curPer={start:s,end:e,compStart:cs,compEnd:ce,omsu:[...selOmsu]};
+
+    prog(100,'Готово!');await delay(150);
+    renderDash(data,daily);
+    $('dash').style.display='block';
+    $('abar').style.display='flex';
+    $('dash').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){
+    alert('Ошибка: '+err.message);console.error(err);
+  }finally{
+    hideProg();$('genBtn').disabled=false;
+  }
 };
 
-initOmsuDropdown();
+// ═══════════════════════════════════
+// EXPORTS
+// ═══════════════════════════════════
+$('expXls').onclick=async()=>{
+  if(!curData||!curPer){alert('Нет данных');return;}
+  const btn=$('expXls');
+  btn.disabled=true;btn.textContent='⏳ Подготовка...';
+
+  try{
+    // CSV mode: exportRows already collected during streamCSV
+    // XLSX mode: need SheetJS
+    if(typeof XLSX==='undefined'){
+      // Load XLSX dynamically if needed
+      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+    }
+    if(!exportRows.length){alert('Нет строк для экспорта (пересформируйте в CSV-режиме)');return;}
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(exportRows),'Данные');
+    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
+  }catch(err){alert('Ошибка: '+err.message);}
+  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
+};
+
+$('expHtml').onclick=()=>{
+  if(!curData||!curPer)return;
+  const css=`<style>${document.querySelector('style').textContent}</style>`;
+  const{start,end}=curPer;
+  let nav='<div class="tabs">',cont='<div id="tabCont">';
+  curData.forEach((item,i)=>{
+    nav+=`<button class="tb${i===0?' on':''}" onclick="sw(${i})">${item.name} (${item.total.toLocaleString('ru')})</button>`;
+    const dp=Math.round(((item.total-item.compTotal)/Math.max(item.compTotal,1))*100);
+    const sR=item.subs.map((s,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${s.name}</td><td>${s.count}</td><td>${s.pctGroup}%</td><td>${rdyn(s.dynPct,s.dynAbs)}</td></tr>`).join('');
+    const sRbtn=item.subs.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.subs.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+    const fR=item.facts.map((f,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${f.name}</td><td>${f.count}</td><td>${rdyn(f.dynPct,f.dynAbs)}</td></tr>`).join('');
+    const fRbtn=item.facts.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.facts.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+    const oR=item.omsus.map((o,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${o.name}</td><td>${o.count}</td><td>${rdyn(o.dynPct,o.dynAbs)}</td><td>${o.mainSub}</td></tr>`).join('');
+    const oRbtn=item.omsus.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.omsus.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+    const aR=item.addrs.map((a,i)=>`<tr${i>=10?' class="mr2" style="display:none"':''}><td>${a.address}</td><td>${a.count}</td><td>${a.mainSub}</td></tr>`).join('');
+    const aRbtn=item.addrs.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.addrs.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+    const mR=item.mails.map((m,mi)=>{
+      const oh=m.omsus.length>0?`<div class="ol">${m.omsus.map(o=>`<span class="ot">${o}</span>`).join('')}</div>`:'';
+      const fh=m.facts.length>0?m.facts.map(f=>`<div class="fitem"><span class="fn">${f[0]}</span><span class="fc">${f[1]}</span></div>`).join(''):'<span style="color:var(--td);font-size:11px">Нет данных</span>';
+      return`<tr class="cr${mi>=10?' mr2':''}" style="${mi>=10?'display:none':''}" onclick="togExpE(this,'emf-${i}-${mi}')">
+        <td style="max-width:280px"><span class="ei">▶</span><span style="word-break:break-all">${m.email}</span>${oh}</td>
+        <td style="text-align:center;font-weight:700">${m.count}</td></tr>
+      <tr${mi>=10?' class="fr mr2" style="display:none"':' class="fr"'} id="emf-${i}-${mi}"><td colspan="2" style="padding:2px 8px 8px 24px"><div class="fin"><div class="fit">📋 Факты</div>${fh}</div></td></tr>`;
+    }).join('');
+    const mRbtn=item.mails.length>10?`<div class="pg-btns"><button class="smb pg-plus" onclick="pgPlus(this)">▼ +10 (ещё ${item.mails.length-10})</button><button class="smb pg-minus" onclick="pgMinus(this)" style="display:none">▲ -10</button><button class="smb pg-collapse" onclick="pgCollapse(this)" style="display:none">▲▲ Свернуть всё</button></div>`:'';
+    cont+=`<div class="tc${i===0?' on':''}" id="tab-${i}">
+      <div class="mr">
+        <div class="mc"><div class="mi">📋</div><div><div class="mv">${item.total.toLocaleString('ru')}</div><div class="ml">Обращений</div></div></div>
+        <div class="mc"><div class="mi">📈</div><div><div class="mv" style="font-size:17px;margin-top:3px">${rdyn(dp,item.total-item.compTotal)}</div><div class="ml">Динамика</div></div></div>
+        <div class="mc"><div class="mi">🗂️</div><div><div class="mv">${item.subs.length}</div><div class="ml">Подтем</div></div></div>
+        <div class="mc"><div class="mi">🏢</div><div><div class="mv">${item.omsus.length}</div><div class="ml">ОМСУ</div></div></div>
+      </div>
+      <div style="margin-bottom:16px"><div class="sb"><div class="st"><span>📅 Динамика по дням</span></div><div class="cc"><canvas id="ech-${i}"></canvas></div></div></div>
+      <div class="dg">
+        <div class="sb"><div class="st"><span>📌 Подтемы</span></div><div class="pg-wrap"><table><thead><tr><th>Подтема</th><th>Кол-во</th><th>%</th><th>Динамика</th></tr></thead><tbody>${sR}</tbody></table>${sRbtn}</div></div>
+        <div class="sb"><div class="st"><span>⚠️ Факты</span></div><div class="pg-wrap"><table><thead><tr><th>Факт</th><th>Кол-во</th><th>Динамика</th></tr></thead><tbody>${fR}</tbody></table>${fRbtn}</div></div>
+        <div class="sb"><div class="st"><span>🏢 ОМСУ</span></div><div class="pg-wrap"><table><thead><tr><th>ОМСУ</th><th>Кол-во</th><th>Динамика</th><th>Гл. подтема</th></tr></thead><tbody>${oR}</tbody></table>${oRbtn}</div></div>
+        <div class="sb"><div class="st"><span>✉️ Заявители</span></div><div class="pg-wrap"><table><thead><tr><th>Email</th><th>Кол-во</th></tr></thead><tbody>${mR}</tbody></table>${mRbtn}</div></div>
+        <div class="sb" style="grid-column:1/-1"><div class="st"><span>📍 Адреса</span></div><div class="pg-wrap"><table><thead><tr><th>Адрес</th><th>Кол-во</th><th>Гл. подтема</th></tr></thead><tbody>${aR}</tbody></table>${aRbtn}</div></div>
+      </div></div>`;
+  });
+  nav+='</div>';cont+='</div>';
+  // Embed all chart data as a JS array in the exported HTML
+  const chartDataJson=JSON.stringify(curData.map(item=>{
+    const days=Object.keys(lazyDy).sort();
+    return{name:item.name,labels:days,values:days.map(d=>lazyDy[d]?.[item.name]||0)};
+  }));
+  const pointR=Object.keys(lazyDy).length>60?0:3;
+
+  // Exported HTML chart init: uses DOMContentLoaded for reliability, retries if Chart.js not ready
+  const expChartScript=`
+    var CHART_DATA=${chartDataJson};
+    var POINT_R=${pointR};
+    function initCharts(){
+      if(typeof Chart==='undefined'){setTimeout(initCharts,100);return;}
+      CHART_DATA.forEach(function(d,ci){
+        var canvas=document.getElementById('ech-'+ci);
+        if(!canvas)return;
+        new Chart(canvas,{type:'line',
+          data:{labels:d.labels,datasets:[{data:d.values,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',fill:true,tension:.4,pointRadius:POINT_R,pointHoverRadius:5,borderWidth:2}]},
+          options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(17,24,39,.95)',borderColor:'#243044',borderWidth:1,titleColor:'#7a90b0',bodyColor:'#e2eaf6',callbacks:{label:function(t){return'Обращений: '+t.raw;}}}},
+            scales:{x:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',maxTicksLimit:12,font:{size:10}}},y:{grid:{color:'rgba(36,48,68,.5)'},ticks:{color:'#4a607e',font:{size:10}},beginAtZero:true}}
+          }
+        });
+      });
+    }
+    document.addEventListener('DOMContentLoaded',initCharts);
+  `;
+
+const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашборд ${start}–${end}</title><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>${css}</head><body><div class="wrap"><div style="padding:16px 0 4px"><h2 style="color:white">📊 Дашборд обращений</h2><p style="color:var(--tm);font-size:12px;margin-top:4px">Период: ${start} — ${end}</p></div>${nav}${cont}</div><script>function sw(i){document.querySelectorAll('.tb').forEach((b,j)=>b.classList.toggle('on',j===i));document.querySelectorAll('.tc').forEach((c,j)=>c.classList.toggle('on',j===i));}function togExpE(row,id){row.classList.toggle('expanded');var fr=document.getElementById(id);if(fr)fr.classList.toggle('show');}const PAGE=10;function pgPlus(btn){const w=btn.closest('.pg-wrap');if(!w)return;const all=[...w.querySelectorAll('table tr.mr2')].filter(r=>!r.classList.contains('fr'));let n=0;for(const r of all){if(r.style.display==='none'){r.style.display='';var nxt=r.nextElementSibling;if(nxt&&nxt.classList.contains('fr'))nxt.style.display='none';n++;if(n>=PAGE)break;}}updPg(w);}function pgMinus(btn){const w=btn.closest('.pg-wrap');if(!w)return;const vis=[...w.querySelectorAll('table tr.mr2')].filter(r=>r.style.display!=='none'&&!r.classList.contains('fr')).reverse();let n=0;for(const r of vis){r.style.display='none';var nxt=r.nextElementSibling;if(nxt&&nxt.classList.contains('fr')){nxt.style.display='none';nxt.classList.remove('show');r.classList.remove('expanded');}n++;if(n>=PAGE)break;}updPg(w);}function pgCollapse(btn){const w=btn.closest('.pg-wrap');if(!w)return;w.querySelectorAll('table tr.mr2').forEach(r=>{r.style.display='none';if(r.classList.contains('fr')){r.classList.remove('show');}else{r.classList.remove('expanded');}});updPg(w);}function updPg(w){const all=[...w.querySelectorAll('table tr.mr2')].filter(r=>!r.classList.contains('fr'));const vis=all.filter(r=>r.style.display!=='none').length;const rem=all.length-vis;const bp=w.querySelector('.pg-plus');const bm=w.querySelector('.pg-minus');const bc=w.querySelector('.pg-collapse');if(bp){bp.textContent='\u25bc +10'+(rem>0?' (\u0435\u0449\u0451 '+rem+')':'');bp.disabled=rem<=0;}if(bm)bm.style.display=vis>0?'':'none';if(bc)bc.style.display=vis>0?'':'none';}${expChartScript}<\/script></body></html>`;
+  const blob=new Blob([html],{type:'text/html'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`dashboard_${start}_${end}.html`;a.click();
+};
+
+
+// ═══════════════════════════════════
+// ═══════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════
+function saveS(){try{sessionStorage.setItem('dv4',JSON.stringify({s:$('startDate').value,e:$('endDate').value,cs:$('compStartDate').value,ce:$('compEndDate').value,omsu:[...selOmsu],mode:curMode}));}catch(_){}}
+function loadS(){
+  try{
+    const c=JSON.parse(sessionStorage.getItem('dv4')||'null');if(!c)return;
+    ['s','e','cs','ce'].forEach((k,i)=>{const ids=['startDate','endDate','compStartDate','compEndDate'];if(c[k])$(ids[i]).value=c[k];});
+    if(c.omsu?.length){selOmsu=new Set(c.omsu);c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});updO();}
+    if(c.mode&&c.mode!==curMode)setMode(c.mode);
+  }catch(_){}
+}
+
+
+// ═══════════════════════════════════
+// GENERATE — calls Vercel API
+// ═══════════════════════════════════
+$('genBtn').onclick=async()=>{
+  const s=$('startDate').value,e=$('endDate').value;
+  const cs=$('compStartDate').value,ce=$('compEndDate').value;
+  if(!s||!e||!cs||!ce){alert('Заполните все 4 даты');return;}
+
+  saveS();
+  $('genBtn').disabled=true;
+  $('dash').style.display='none';
+  $('abar').style.display='none';
+  showProg('Запрос к серверу...');
+
+  try{
+    prog(10,'Загрузка данных с сервера...');
+
+    const resp=await fetch('/api',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        start:s,end:e,compStart:cs,compEnd:ce,
+        omsuFilter:[...selOmsu]
+      })
+    });
+
+    prog(60,'Получение ответа...');
+
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({error:resp.statusText}));
+      throw new Error(err.error||`Ошибка сервера: ${resp.status}`);
+    }
+
+    const json=await resp.json();
+    if(!json.data?.length){alert('Нет данных за указанный период');return;}
+
+    prog(90,'Формирование дашборда...');
+    await delay(0);
+
+    curData=json.data;
+    curPer={start:s,end:e,compStart:cs,compEnd:ce,omsu:[...selOmsu]};
+    lazyDy=json.daily||{};
+
+    const yearsInfo=json.yearsLoaded?.join(', ')||'';
+    const mainCnt=(json.counts?.main||0).toLocaleString('ru');
+    const compCnt=(json.counts?.comp||0).toLocaleString('ru');
+    $('dataInfo').textContent=`Основной период: ${mainCnt} строк · Сравнение: ${compCnt} строк · Годы: ${yearsInfo}`;
+
+    prog(100,'Готово!');await delay(150);
+
+    renderDash(json.data,json.daily||{});
+    $('dash').style.display='block';
+    $('abar').style.display='flex';
+    $('dash').scrollIntoView({behavior:'smooth',block:'start'});
+
+  }catch(err){
+    alert('Ошибка: '+err.message);console.error(err);
+  }finally{
+    hideProg();$('genBtn').disabled=false;
+  }
+};
+
+// ═══════════════════════════════════
+// INIT
+// ═══════════════════════════════════
+initOmsu();
+loadS();
 </script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </body>
 </html>
