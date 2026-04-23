@@ -308,6 +308,10 @@ function addToGroupScaled(dst, g, ratio) {
     dst.mails[k].c += sc(v.c || 0);
     for (const [f, n] of Object.entries(v.facts || {}))
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + sc(n);
+    // preserve omsus tags
+    const exS = new Set(dst.mails[k].omsus);
+    for (const o of (v.omsus || [])) exS.add(o);
+    dst.mails[k].omsus = [...exS];
   }
   for (const [k, v] of Object.entries(g.addrs || {})) {
     if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {} };
