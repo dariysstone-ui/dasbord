@@ -140,6 +140,11 @@
     .pg-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
     ::-webkit-scrollbar{width:6px;height:6px}
     ::-webkit-scrollbar-thumb{background:var(--bl);border-radius:3px}
+    .srf{position:relative}
+    .srs{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;user-select:none}
+    .srs:hover{border-color:var(--ac)}
+    .srd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:260px;overflow-y:auto;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+    .srd.show{display:block;animation:drop .15s ease}
   
   </style>
 </head>
@@ -151,7 +156,7 @@
       <span class="badge" id="statusBadge">Онлайн</span>
     </div>
 
-    <div class="fg" style="margin-top:4px">
+    <div class="fg" style="margin-top:4px;grid-template-columns:repeat(4,1fr) 1.3fr 1.3fr auto">
       <div><label>Период: с</label><input type="date" id="startDate"></div>
       <div><label>Период: по</label><input type="date" id="endDate"></div>
       <div><label>Сравнение: с</label><input type="date" id="compStartDate"></div>
@@ -166,6 +171,17 @@
           </span>
         </div>
         <div class="omd" id="omsDrop"></div>
+      </div>
+      <div class="srf">
+        <label>Фильтр по источнику</label>
+        <div class="srs" onclick="toggleSrc(event)">
+          <span id="srcP">Все источники</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="srcClearBtn" onclick="clearSrc(event)" style="display:none;background:rgba(244,63,94,.2);color:#f43f5e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">✕</span>
+            <span style="opacity:.4;font-size:10px">▼</span>
+          </span>
+        </div>
+        <div class="srd" id="srcDrop"></div>
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px;grid-column:span 1">
         <button class="btn btn-p" id="genBtn" style="width:100%">🚀 Сформировать</button>
@@ -194,7 +210,7 @@
 // STATE
 // ═══════════════════════════════════
 const OMSU_LIST=['Долгопрудный','Подольск','Наро-Фоминский','Щелково','Павлово-Посадский','Люберцы','Истра','Мытищи','Домодедово','Химки','Электросталь','Красногорск','Жуковский','Ленинский','Реутов','Дмитровский','Котельники','Богородский','Солнечногорск','Ступино','Егорьевск','Луховицы','Балашиха','Воскресенск','Клин','Одинцовский','Дубна','Сергиево-Посадский','Раменский','Лобня','Рузский','Серпухов','Фрязино','Королёв','Пушкинский','Талдомский','Кашира','Коломна','Черноголовка','Лосино-Петровский','Чехов','Зарайск','Серебряные Пруды','Шатура','Власиха','Шаховская','Лыткарино','Орехово-Зуевский','Можайский','Краснознаменск','Волоколамский','Лотошино','Бронницы','Звездный городок','Молодежный','Восход'];
-let selOmsu=new Set(), curData=null, curPer=null;
+let selOmsu=new Set(), selSrc=new Set(), curData=null, curPer=null;
 let renderedTabs=new Set(), charts={}, lazyD=null, lazyDy=null, lazyDyComp=null;
 
 
@@ -229,9 +245,67 @@ window.clearOmsu=function(e){
   document.querySelectorAll('.omd input[type=checkbox]').forEach(c=>c.checked=false);
   updO();
 };
-document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
+  if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
+});
 
-document.addEventListener('click',e=>{if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show')});
+const SRC_LIST=['ПОС','Добродел','Инцидент','ЕДС','МСЭД','Почта губернатора','ОНФ','Мы рядом','ППМО'];
+function initSrc(){
+  $('srcDrop').innerHTML=SRC_LIST.map(s=>{
+    const id=`src-${s.replace(/\s+/g,'-')}`;
+    return`<div class="omo" onclick="togSrc('${s}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
+  }).join('');
+}
+function toggleSrc(e){e.stopPropagation();$('srcDrop').classList.toggle('show');}
+function togSrc(s,e){
+  e.stopPropagation();
+  const cb=$(`src-${s.replace(/\s+/g,'-')}`);
+  if(cb.checked)selSrc.add(s);else selSrc.delete(s);
+  updSrc();
+}
+function updSrc(){
+  const n=selSrc.size;
+  $('srcP').textContent=n===0?'Все источники':n===1?[...selSrc][0]:`Выбрано: ${n}`;
+  const cb=$('srcClearBtn');if(cb)cb.style.display=n>0?'':'none';
+}
+window.clearSrc=function(e){
+  e.stopPropagation();
+  selSrc.clear();
+  document.querySelectorAll('.srd input[type=checkbox]').forEach(c=>c.checked=false);
+  updSrc();
+};
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
+  if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
+});
+
+
+function initSrc(){
+  $('srcDrop').innerHTML=SRC_LIST.map(s=>{
+    const id=`src-${s.replace(/\s+/g,'-')}`;
+    return`<div class="omo" onclick="togSrc('${s}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
+  }).join('');
+}
+function toggleSrc(e){e.stopPropagation();$('srcDrop').classList.toggle('show');}
+function togSrc(s,e){
+  e.stopPropagation();
+  const cb=$(`src-${s.replace(/\s+/g,'-')}`);
+  if(cb.checked)selSrc.add(s);else selSrc.delete(s);
+  updSrc();
+}
+function updSrc(){
+  const n=selSrc.size;
+  $('srcP').textContent=n===0?'Все источники':n===1?[...selSrc][0]:`Выбрано: ${n}`;
+  const cb=$('srcClearBtn');if(cb)cb.style.display=n>0?'':'none';
+}
+window.clearSrc=function(e){
+  e.stopPropagation();
+  selSrc.clear();
+  document.querySelectorAll('.srd input[type=checkbox]').forEach(c=>c.checked=false);
+  updSrc();
+};
 
 // ═══════════════════════════════════
 // ═══════════════════════════════════
@@ -519,7 +593,7 @@ function saveS(){
     sessionStorage.setItem('dash_online', JSON.stringify({
       s:$('startDate').value, e:$('endDate').value,
       cs:$('compStartDate').value, ce:$('compEndDate').value,
-      omsu:[...selOmsu]
+      omsu:[...selOmsu], src:[...selSrc]
     }));
   }catch(_){}
 }
@@ -535,6 +609,11 @@ function loadS(){
       selOmsu=new Set(c.omsu);
       c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});
       updO();
+    }
+    if(c.src?.length){
+      selSrc=new Set(c.src);
+      c.src.forEach(s=>{const cb=$(`src-${s.replace(/\s+/g,'-')}`);if(cb)cb.checked=true;});
+      updSrc();
     }
   }catch(_){}
 }
@@ -559,7 +638,7 @@ $('genBtn').onclick=async()=>{
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu]})
+      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu], sourceFilter:[...selSrc]})
     });
 
     prog(65,'Получение ответа...');
@@ -576,7 +655,7 @@ $('genBtn').onclick=async()=>{
     await delay(0);
 
     curData=json.data;
-    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu]};
+    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu], src:[...selSrc]};
     lazyDy=json.daily||{};
     lazyDyComp=json.dailyComp||{};
 
@@ -619,6 +698,7 @@ $('expXls').onclick=async()=>{
         start:curPer.start,end:curPer.end,
         compStart:curPer.compStart,compEnd:curPer.compEnd,
         omsuFilter:curPer.omsu||[],
+        sourceFilter:curPer.src||[],
         exportRaw:true
       })
     });
@@ -769,6 +849,7 @@ const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашбор
 // INIT
 // ═══════════════════════════════════
 initOmsu();
+initSrc();
 loadS();
 </script>
 </body>
