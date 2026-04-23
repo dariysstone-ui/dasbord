@@ -273,6 +273,38 @@ function addToGroup(dst, g) {
   }
 }
 
+// ─── Scale group values by ratio (used when sourceFilter applied without omsuFilter) ───
+function addToGroupScaled(dst, g, ratio) {
+  const sc = v => Math.max(1, Math.round(v * ratio));
+  dst.total += Math.round((g.total || 0) * ratio);
+  for (const [k, v] of Object.entries(g.subs || {})) {
+    if (!dst.subs[k]) dst.subs[k] = { count: 0, facts: {} };
+    dst.subs[k].count += sc(v.count || 0);
+    for (const [f, n] of Object.entries(v.facts || {}))
+      dst.subs[k].facts[f] = (dst.subs[k].facts[f] || 0) + sc(n);
+  }
+  for (const [k, v] of Object.entries(g.omsu || {})) {
+    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {} };
+    dst.omsu[k].c += sc(v.c || 0);
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.omsu[k].subs[s] = (dst.omsu[k].subs[s] || 0) + sc(n);
+  }
+  for (const [k, n] of Object.entries(g.facts || {}))
+    dst.facts[k] = (dst.facts[k] || 0) + sc(n);
+  for (const [k, v] of Object.entries(g.mails || {})) {
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [] };
+    dst.mails[k].c += sc(v.c || 0);
+    for (const [f, n] of Object.entries(v.facts || {}))
+      dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + sc(n);
+  }
+  for (const [k, v] of Object.entries(g.addrs || {})) {
+    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {} };
+    dst.addrs[k].c += sc(v.c || 0);
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.addrs[k].subs[s] = (dst.addrs[k].subs[s] || 0) + sc(n);
+  }
+}
+
 // ─── Daily counts for sparkline ───
 function buildDaily(allDays, start, end, omsuFilter, sourceFilter = []) {
   const daily = {};
