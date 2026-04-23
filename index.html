@@ -220,7 +220,7 @@
       <div class="pb"><div class="pf" id="pf"></div></div>
     </div>
     <div class="abar" id="abar" style="display:none">
-      <button class="btn btn-s btn-sm" id="expXls">📥 Выгрузить в Excel</button>
+      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в CSV</button>
       <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
       <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
     </div>
@@ -712,12 +712,12 @@ $('genBtn').onclick=async()=>{
 // EXPORT HTML
 // ═══════════════════════════════════
 
-$('expXls').onclick=async()=>{
+$('expCsv').onclick=async()=>{
   if(!curPer){alert('Нет данных');return;}
-  const btn=$('expXls');
-  btn.disabled=true;btn.textContent='⏳ Загрузка строк...';
+  const btn=$('expCsv');
+  btn.disabled=true;btn.textContent='⏳ Подготовка...';
   try{
-    // Request raw rows from API (separate endpoint action)
+    // Streaming CSV — server writes directly to response, no RAM accumulation
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -729,39 +729,22 @@ $('expXls').onclick=async()=>{
         exportRaw:true
       })
     });
-    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error||'Ошибка сервера');}
-    const json=await resp.json();
-    const rawRows=json.rawRows||[];
-    if(!rawRows.length){alert('Нет данных для выгрузки');return;}
-
-    btn.textContent='⏳ Формирование Excel...';
-    if(typeof XLSX==='undefined'){
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script');
-        s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-        s.onload=res;s.onerror=rej;document.head.appendChild(s);
-      });
+    if(!resp.ok){
+      const e=await resp.json().catch(()=>({}));
+      throw new Error(e.error||`Ошибка сервера: ${resp.status}`);
     }
-    // Fixed column order — must match original CSV exactly
-    const COLS=[
-      'Порядковый номер','Номер ЕЦУР','Номер в источнике',
-      'Дата (первого взятия в работу)','Направление','Синт. группа',
-      'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
-      'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
-      'Описание','Почта заявителя','Управляющая компания','Адрес',
-      'Район','Населенный пункт','Улица','Дом','Внутренний Id'
-    ];
-    // Build array-of-arrays: header row + data rows (no extra columns)
-    const aoa=[COLS];
-    for(const row of rawRows){
-      aoa.push(COLS.map(col=>row[col]??''));
-    }
-    const wb=XLSX.utils.book_new();
-    const ws=XLSX.utils.aoa_to_sheet(aoa);
-    XLSX.utils.book_append_sheet(wb,ws,'Данные');
-    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
+    btn.textContent='⏳ Скачивание...';
+    // Read streamed CSV and trigger download
+    const blob=await resp.blob();
+    if(!blob.size){alert('Нет данных для выгрузки');return;}
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`export_${curPer.start}_${curPer.end}.csv`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
-  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
+  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в CSV';}
 };
 
 $('expHtml').onclick=()=>{
