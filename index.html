@@ -189,39 +189,7 @@
 const OMSU_LIST=['Долгопрудный','Подольск','Наро-Фоминский','Щелково','Павлово-Посадский','Люберцы','Истра','Мытищи','Домодедово','Химки','Электросталь','Красногорск','Жуковский','Ленинский','Реутов','Дмитровский','Котельники','Богородский','Солнечногорск','Ступино','Егорьевск','Луховицы','Балашиха','Воскресенск','Клин','Одинцовский','Дубна','Сергиево-Посадский','Раменский','Лобня','Рузский','Серпухов','Фрязино','Королёв','Пушкинский','Талдомский','Кашира','Коломна','Черноголовка','Лосино-Петровский','Чехов','Зарайск','Серебряные Пруды','Шатура','Власиха','Шаховская','Лыткарино','Орехово-Зуевский','Можайский','Краснознаменск','Волоколамский','Лотошино','Бронницы','Звездный городок','Молодежный','Восход'];
 let selOmsu=new Set(), curData=null, curPer=null;
 let renderedTabs=new Set(), charts={}, lazyD=null, lazyDy=null;
-let curMode='csv';
 
-// For Excel export: store raw filtered rows compactly
-// Keys we need for the dashboard (we store ALL columns for export)
-let exportRows=[]; // {cols}
-
-// ═══════════════════════════════════
-// MODE SWITCH
-// ═══════════════════════════════════
-function setMode(m) {
-  curMode=m;
-  document.getElementById('modeCSV').classList.toggle('active',m==='csv');
-  document.getElementById('modeXLSX').classList.toggle('active',m==='xlsx');
-  document.getElementById('csvHint').style.display=m==='csv'?'':'none';
-  document.getElementById('csvHint').classList.toggle('show',m==='csv');
-  document.getElementById('xlsxWarn').classList.toggle('show',m==='xlsx');
-  document.getElementById('modeBadge').textContent=m==='csv'?'CSV — Streaming':'XLSX';
-  document.getElementById('modeBadge').classList.toggle('warn',m==='xlsx');
-  const fi=document.getElementById('fileInput');
-  fi.accept=m==='csv'?'.csv':'.xlsx,.xls';
-  document.getElementById('fileLabelText').textContent=m==='csv'?'Файл CSV':'Файл Excel';
-  document.getElementById('fileInfo').textContent='';
-  if(m==='xlsx') loadXlsxScript();
-}
-
-let xlsxLoaded=false;
-function loadXlsxScript() {
-  if(xlsxLoaded) return;
-  xlsxLoaded=true;
-  const s=document.createElement('script');
-  s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-  document.head.appendChild(s);
-}
 
 // ═══════════════════════════════════
 // PROGRESS
@@ -462,94 +430,96 @@ function switchTab(i){
 // ═══════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════
-function saveS(){try{sessionStorage.setItem('dv4',JSON.stringify({s:$('startDate').value,e:$('endDate').value,cs:$('compStartDate').value,ce:$('compEndDate').value,omsu:[...selOmsu],mode:curMode}));}catch(_){}}
+function saveS(){
+  try{
+    sessionStorage.setItem('dash_online', JSON.stringify({
+      s:$('startDate').value, e:$('endDate').value,
+      cs:$('compStartDate').value, ce:$('compEndDate').value,
+      omsu:[...selOmsu]
+    }));
+  }catch(_){}
+}
 function loadS(){
   try{
-    const c=JSON.parse(sessionStorage.getItem('dv4')||'null');if(!c)return;
-    ['s','e','cs','ce'].forEach((k,i)=>{const ids=['startDate','endDate','compStartDate','compEndDate'];if(c[k])$(ids[i]).value=c[k];});
-    if(c.omsu?.length){selOmsu=new Set(c.omsu);c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});updO();}
-    if(c.mode&&c.mode!==curMode)setMode(c.mode);
+    const c=JSON.parse(sessionStorage.getItem('dash_online')||'null');
+    if(!c)return;
+    if(c.s)  $('startDate').value=c.s;
+    if(c.e)  $('endDate').value=c.e;
+    if(c.cs) $('compStartDate').value=c.cs;
+    if(c.ce) $('compEndDate').value=c.ce;
+    if(c.omsu?.length){
+      selOmsu=new Set(c.omsu);
+      c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});
+      updO();
+    }
   }catch(_){}
 }
 
 // ═══════════════════════════════════
-// FILE INFO
-// ═══════════════════════════════════
-$('fileInput').addEventListener('change',e=>{
-  const f=e.target.files[0];
-  if(f)$('fileInfo').textContent=`${f.name} · ${(f.size/1024/1024).toFixed(1)} МБ`;
-});
-
-// ═══════════════════════════════════
-// MAIN
+// GENERATE — calls Vercel API
 // ═══════════════════════════════════
 $('genBtn').onclick=async()=>{
-  const file=$('fileInput').files[0];
-  const s=$('startDate').value,e=$('endDate').value;
-  const cs=$('compStartDate').value,ce=$('compEndDate').value;
-  if(!file){alert('Выберите файл');return;}
+  const s=$('startDate').value, e=$('endDate').value;
+  const cs=$('compStartDate').value, ce=$('compEndDate').value;
   if(!s||!e||!cs||!ce){alert('Заполните все 4 даты');return;}
 
   saveS();
   $('genBtn').disabled=true;
   $('dash').style.display='none';
   $('abar').style.display='none';
-  showProg('Запуск...');
+  showProg('Запрос к серверу...');
 
   try{
-    let mainG,compG,daily,rowCount;
+    prog(15,'Загрузка данных с сервера...');
 
-    if(curMode==='csv'){
-      // True streaming — never loads all rows into memory
-      const res=await streamCSV(file,s,e,cs,ce,selOmsu,true);
-      mainG=res.mainG;compG=res.compG;daily=res.daily;rowCount=res.rowCount;
-    } else {
-      if(typeof XLSX==='undefined'){alert('XLSX не загружен, подождите секунду и попробуйте снова');$('genBtn').disabled=false;hideProg();return;}
-      const res=await streamXLSX(file,s,e,cs,ce,selOmsu);
-      mainG=res.mainG;compG=res.compG;daily=res.daily;rowCount=res.rowCount;
+    const resp=await fetch('/api',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu]})
+    });
+
+    prog(65,'Получение ответа...');
+
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({error:resp.statusText}));
+      throw new Error(err.error||`Ошибка сервера: ${resp.status}`);
     }
 
-    prog(90,'Формирование дашборда...');await delay(0);
-    const data=processData(mainG,compG);
-    if(!data.length){alert('Нет данных за указанный период');return;}
+    const json=await resp.json();
+    if(!json.data?.length){alert('Нет данных за указанный период');return;}
 
-    $('fileInfo').textContent=`${file.name} · ${rowCount.toLocaleString('ru')} строк · ${(file.size/1024/1024).toFixed(1)} МБ`;
-    curData=data;curPer={start:s,end:e,compStart:cs,compEnd:ce,omsu:[...selOmsu]};
+    prog(90,'Формирование дашборда...');
+    await delay(0);
 
-    prog(100,'Готово!');await delay(150);
-    renderDash(data,daily);
+    curData=json.data;
+    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu]};
+    lazyDy=json.daily||{};
+
+    const mainCnt=(json.counts?.main||0).toLocaleString('ru');
+    const compCnt=(json.counts?.comp||0).toLocaleString('ru');
+    const years=(json.yearsLoaded||[]).join(', ');
+    $('dataInfo').textContent=`Основной: ${mainCnt} строк · Сравнение: ${compCnt} строк · Годы: ${years}`;
+
+    prog(100,'Готово!');
+    await delay(150);
+
+    renderDash(json.data, json.daily||{});
     $('dash').style.display='block';
     $('abar').style.display='flex';
-    $('dash').scrollIntoView({behavior:'smooth',block:'start'});
+    $('dash').scrollIntoView({behavior:'smooth', block:'start'});
+
   }catch(err){
-    alert('Ошибка: '+err.message);console.error(err);
+    alert('Ошибка: '+err.message);
+    console.error(err);
   }finally{
-    hideProg();$('genBtn').disabled=false;
+    hideProg();
+    $('genBtn').disabled=false;
   }
 };
 
 // ═══════════════════════════════════
-// EXPORTS
+// EXPORT HTML
 // ═══════════════════════════════════
-$('expXls').onclick=async()=>{
-  if(!curData||!curPer){alert('Нет данных');return;}
-  const btn=$('expXls');
-  btn.disabled=true;btn.textContent='⏳ Подготовка...';
-
-  try{
-    // CSV mode: exportRows already collected during streamCSV
-    // XLSX mode: need SheetJS
-    if(typeof XLSX==='undefined'){
-      // Load XLSX dynamically if needed
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-    }
-    if(!exportRows.length){alert('Нет строк для экспорта (пересформируйте в CSV-режиме)');return;}
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(exportRows),'Данные');
-    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
-  }catch(err){alert('Ошибка: '+err.message);}
-  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
-};
 
 $('expHtml').onclick=()=>{
   if(!curData||!curPer)return;
@@ -631,15 +601,6 @@ const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашбор
 // ═══════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════
-function saveS(){try{sessionStorage.setItem('dv4',JSON.stringify({s:$('startDate').value,e:$('endDate').value,cs:$('compStartDate').value,ce:$('compEndDate').value,omsu:[...selOmsu],mode:curMode}));}catch(_){}}
-function loadS(){
-  try{
-    const c=JSON.parse(sessionStorage.getItem('dv4')||'null');if(!c)return;
-    ['s','e','cs','ce'].forEach((k,i)=>{const ids=['startDate','endDate','compStartDate','compEndDate'];if(c[k])$(ids[i]).value=c[k];});
-    if(c.omsu?.length){selOmsu=new Set(c.omsu);c.omsu.forEach(o=>{const cb=$(`o-${o.replace(/[\s']+/g,'-')}`);if(cb)cb.checked=true;});updO();}
-    if(c.mode&&c.mode!==curMode)setMode(c.mode);
-  }catch(_){}
-}
 
 
 // ═══════════════════════════════════
