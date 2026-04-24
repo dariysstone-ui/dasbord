@@ -16,30 +16,38 @@
       --er: #f43f5e; --erb: rgba(244,63,94,.14);
     }
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;padding:20px}
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;padding:16px}
+    @media(max-width:600px){body{padding:10px}}
     .wrap{max-width:1680px;margin:0 auto}
 
-    .panel{background:var(--panel);border:1px solid var(--b);border-radius:14px;padding:22px 24px;margin-bottom:20px;box-shadow:0 4px 32px rgba(0,0,0,.35)}
-    .hdr{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-    .hdr h2{font-size:18px;font-weight:700}
+    .panel{background:var(--panel);border:1px solid var(--b);border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:0 4px 32px rgba(0,0,0,.35)}
+    @media(max-width:600px){.panel{padding:14px;border-radius:12px}}
+    .hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .hdr h2{font-size:17px;font-weight:700}
+    @media(max-width:600px){.hdr h2{font-size:15px}}
     .badge{background:var(--ag);border:1px solid rgba(59,130,246,.35);color:var(--ac);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.6px}
     .badge.warn{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.4);color:#fbbf24}
 
-    /* Mode tabs */
-    .mode-tabs{display:flex;gap:8px;margin-bottom:16px}
-    .mode-tab{padding:7px 16px;border-radius:8px;border:1px solid var(--b);background:var(--card);color:var(--tm);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
-    .mode-tab.active{background:var(--ac);color:white;border-color:var(--ac)}
-
-    .fg{display:grid;grid-template-columns:2fr repeat(4,1fr) 1.5fr auto;gap:12px;align-items:end}
+    /* Form grid — responsive */
+    .fg{display:grid;grid-template-columns:repeat(4,1fr) 1.3fr 1.3fr auto;gap:10px;align-items:end}
     @media(max-width:1100px){.fg{grid-template-columns:1fr 1fr}}
-    label{display:block;margin-bottom:5px;color:var(--tm);font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+    @media(max-width:600px){
+      .fg{grid-template-columns:1fr 1fr;gap:8px}
+      .fg>div:last-child{grid-column:1/-1}
+    }
+    label{display:block;margin-bottom:4px;color:var(--tm);font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
     input[type=date]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;transition:border-color .2s}
+    @media(max-width:600px){input[type=date]{font-size:14px;padding:11px 10px}}
     input[type=date]:focus{outline:none;border-color:var(--ac)}
-    input[type=file]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--tm);font-size:12px;cursor:pointer}
-    input[type=file]::file-selector-button{background:var(--ac);color:white;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:11px;margin-right:8px}
-    .fi{font-size:11px;color:var(--tm);margin-top:4px;min-height:16px}
 
-    .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;white-space:nowrap}
+    /* Section labels for mobile grouping */
+    .fg-section{display:none}
+    @media(max-width:600px){
+      .fg-section{display:block;grid-column:1/-1;font-size:10px;font-weight:700;color:var(--td);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;padding-bottom:2px;border-bottom:1px solid var(--b)}
+    }
+
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;white-space:nowrap}
+    @media(max-width:600px){.btn{padding:12px 18px;font-size:14px}}
     .btn-p{background:var(--ac);color:white}
     .btn-p:hover:not(:disabled){background:#2563eb;box-shadow:0 0 16px rgba(59,130,246,.4)}
     .btn-s{background:var(--ok);color:white}
@@ -48,7 +56,8 @@
     .btn-g:hover{background:var(--card);color:var(--t)}
     .btn-sm{padding:6px 12px;font-size:11px}
     .btn:disabled{opacity:.4;cursor:not-allowed}
-    .abar{display:flex;gap:10px;margin-top:14px}
+    .abar{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    @media(max-width:600px){.abar .btn{flex:1;min-width:0}}
 
     /* Info/warning boxes */
     .infobox{border-radius:8px;padding:10px 14px;margin-top:12px;font-size:12px;line-height:1.6;display:none}
@@ -70,40 +79,53 @@
     .omf{position:relative}
     .oms{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;user-select:none}
     .oms:hover{border-color:var(--ac)}
-    .omd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:280px;overflow-y:auto;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+    .omd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:280px;overflow-y:auto;z-index:500;box-shadow:0 12px 40px rgba(0,0,0,.7);-webkit-overflow-scrolling:touch}
+    @media(max-width:600px){.omd{max-height:220px;position:fixed;left:10px;right:10px;top:auto}}
     .omd.show{display:block;animation:drop .15s ease}
     @keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-    .omo{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px}
+    .omo{padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px}
+    @media(max-width:600px){.omo{padding:13px 14px}}
+    @media(max-width:600px){.omo input{width:18px;height:18px}}
+    @media(max-width:600px){.omo label{font-size:13px}}
     .omo:hover{background:var(--card)}
     .omo input{accent-color:var(--ac);width:14px;height:14px}
     .omo label{margin:0;cursor:pointer;color:var(--t);font-size:12px;text-transform:none;letter-spacing:0;font-weight:400}
 
     /* Tabs */
-    .tabs{display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
+    .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+    @media(max-width:600px){.tabs{gap:5px;margin-bottom:12px}}
     .tabs::-webkit-scrollbar{height:4px}
     .tabs::-webkit-scrollbar-thumb{background:var(--bl);border-radius:2px}
-    .tb{background:var(--panel);border:1px solid var(--b);color:var(--tm);padding:7px 15px;border-radius:8px;cursor:pointer;white-space:nowrap;font-size:12px;font-weight:600;transition:all .2s}
+    .tb{background:var(--panel);border:1px solid var(--b);color:var(--tm);padding:7px 14px;border-radius:8px;cursor:pointer;white-space:nowrap;font-size:12px;font-weight:600;transition:all .2s}
+    @media(max-width:600px){.tb{padding:9px 12px;font-size:11px}}
     .tb:hover{border-color:var(--bl);color:var(--t)}
     .tb.on{background:var(--ac);color:white;border-color:var(--ac);box-shadow:0 2px 12px rgba(59,130,246,.35)}
     .tc{display:none;animation:fi .25s ease}
     .tc.on{display:block}
     @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
-    .mr{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    .mr{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
     @media(max-width:900px){.mr{grid-template-columns:repeat(2,1fr)}}
-    .mc{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:18px 20px;display:flex;align-items:center;gap:16px;transition:border-color .2s,box-shadow .2s}
+    @media(max-width:600px){.mr{grid-template-columns:repeat(2,1fr);gap:8px}}
+    .mc{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:14px;transition:border-color .2s,box-shadow .2s}
+    @media(max-width:600px){.mc{padding:12px;gap:10px;border-radius:10px}}
     .mc:hover{border-color:var(--bl);box-shadow:0 4px 20px rgba(0,0,0,.25)}
     .mi{font-size:22px;opacity:.8;flex-shrink:0}
     .mv{font-size:28px;font-weight:800;color:var(--ac);line-height:1;letter-spacing:-1px}
+    @media(max-width:600px){.mv{font-size:22px}}
     .ml{font-size:11px;color:var(--tm);text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
 
-    .dg{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .dg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     @media(max-width:1000px){.dg{grid-template-columns:1fr}}
-    .sb{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:16px;transition:border-color .2s}
+    @media(max-width:600px){.dg{gap:10px}}
+    .sb{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:14px;transition:border-color .2s}
+    @media(max-width:600px){.sb{padding:12px;border-radius:10px}}
     .sb:hover{border-color:var(--bl)}
     .st{font-size:11px;font-weight:700;color:var(--tm);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between}
 
     table{width:100%;border-collapse:collapse;font-size:12px}
+    @media(max-width:600px){table{font-size:11px}}
+    @media(max-width:480px){.hide-mobile{display:none}}
     th{text-align:left;color:var(--td);font-size:10px;padding:6px 8px;border-bottom:1px solid var(--b);font-weight:700;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s}
     th:hover{color:var(--tm)}
     th.sa::after{content:' ↑';color:var(--ac)}
@@ -133,6 +155,7 @@
     .pbb{flex:1;background:var(--card);border-radius:99px;height:4px;min-width:40px;overflow:hidden}
     .pbf{height:100%;border-radius:99px;background:var(--ac)}
     .cc{position:relative;height:190px;margin-top:8px}
+    @media(max-width:600px){.cc{height:140px}}
     .smb{display:inline-flex;align-items:center;padding:5px 10px;background:transparent;border:1px dashed var(--b);border-radius:6px;color:var(--td);font-size:11px;cursor:pointer;transition:all .2s;text-align:center}
     .smb:hover:not(:disabled){border-color:var(--ac);color:var(--ac);background:var(--ag)}
     .smb:disabled{opacity:.3;cursor:not-allowed}
@@ -143,7 +166,8 @@
     .srf{position:relative}
     .srs{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;user-select:none}
     .srs:hover{border-color:var(--ac)}
-    .srd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:260px;overflow-y:auto;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+    .srd{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--bl);border-radius:10px;max-height:260px;overflow-y:auto;z-index:500;box-shadow:0 12px 40px rgba(0,0,0,.7);-webkit-overflow-scrolling:touch}
+    @media(max-width:600px){.srd{max-height:200px;position:fixed;left:10px;right:10px;top:auto}}
     .srd.show{display:block;animation:drop .15s ease}
   
   </style>
@@ -156,11 +180,14 @@
       <span class="badge" id="statusBadge">Онлайн</span>
     </div>
 
-    <div class="fg" style="margin-top:4px;grid-template-columns:repeat(4,1fr) 1.3fr 1.3fr auto">
+    <div class="fg" style="margin-top:4px">
+      <div class="fg-section">📅 Основной период</div>
       <div><label>Период: с</label><input type="date" id="startDate"></div>
       <div><label>Период: по</label><input type="date" id="endDate"></div>
+      <div class="fg-section">📅 Период сравнения</div>
       <div><label>Сравнение: с</label><input type="date" id="compStartDate"></div>
       <div><label>Сравнение: по</label><input type="date" id="compEndDate"></div>
+      <div class="fg-section">🔍 Фильтры</div>
       <div class="omf">
         <label>Фильтр по ОМСУ</label>
         <div class="oms" onclick="toggleOmsu(event)">
@@ -183,7 +210,7 @@
         </div>
         <div class="srd" id="srcDrop"></div>
       </div>
-      <div style="display:flex;align-items:flex-end;gap:8px;grid-column:span 1">
+      <div style="display:flex;align-items:flex-end;gap:8px">
         <button class="btn btn-p" id="genBtn" style="width:100%">🚀 Сформировать</button>
       </div>
     </div>
@@ -193,7 +220,7 @@
       <div class="pb"><div class="pf" id="pf"></div></div>
     </div>
     <div class="abar" id="abar" style="display:none">
-      <button class="btn btn-s btn-sm" id="expXls">📥 Выгрузить в Excel</button>
+      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в CSV</button>
       <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
       <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
     </div>
@@ -685,12 +712,12 @@ $('genBtn').onclick=async()=>{
 // EXPORT HTML
 // ═══════════════════════════════════
 
-$('expXls').onclick=async()=>{
+$('expCsv').onclick=async()=>{
   if(!curPer){alert('Нет данных');return;}
-  const btn=$('expXls');
-  btn.disabled=true;btn.textContent='⏳ Загрузка строк...';
+  const btn=$('expCsv');
+  btn.disabled=true;btn.textContent='⏳ Запрос...';
   try{
-    // Request raw rows from API (separate endpoint action)
+    // Step 1: get download URLs from API
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -702,20 +729,10 @@ $('expXls').onclick=async()=>{
         exportRaw:true
       })
     });
-    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error||'Ошибка сервера');}
+    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error||`Ошибка: ${resp.status}`);}
     const json=await resp.json();
-    const rawRows=json.rawRows||[];
-    if(!rawRows.length){alert('Нет данных для выгрузки');return;}
+    if(json.mode!=='client-csv'){throw new Error('Неожиданный ответ сервера');}
 
-    btn.textContent='⏳ Формирование Excel...';
-    if(typeof XLSX==='undefined'){
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script');
-        s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-        s.onload=res;s.onerror=rej;document.head.appendChild(s);
-      });
-    }
-    // Fixed column order — must match original CSV exactly
     const COLS=[
       'Порядковый номер','Номер ЕЦУР','Номер в источнике',
       'Дата (первого взятия в работу)','Направление','Синт. группа',
@@ -724,17 +741,67 @@ $('expXls').onclick=async()=>{
       'Описание','Почта заявителя','Управляющая компания','Адрес',
       'Район','Населенный пункт','Улица','Дом','Внутренний Id'
     ];
-    // Build array-of-arrays: header row + data rows (no extra columns)
-    const aoa=[COLS];
-    for(const row of rawRows){
-      aoa.push(COLS.map(col=>row[col]??''));
+    const escF=v=>{const s=String(v??'');return(s.includes(';')||s.includes('"')||s.includes('\n')||s.includes('\r'))?'"'+s.replace(/"/g,'""')+'"':s;};
+
+    // Step 2: browser fetches gzip directly — no server RAM limit
+    const chunks=['\uFEFF'+COLS.map(escF).join(';')+'\r\n'];
+    let total=0;
+
+    for(const {year,url} of json.rowsUrls){
+      btn.textContent=`⏳ Загрузка ${year}...`;
+      const r=await fetch(url);
+      if(!r.ok){console.warn(`${year}_rows.jsonl.gz not found`);continue;}
+
+      const ds=new DecompressionStream('gzip');
+      const stream=r.body.pipeThrough(ds);
+      const reader=stream.getReader();
+      const dec=new TextDecoder('utf-8');
+      let buf='';
+
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n');
+        buf=lines.pop();
+        for(const line of lines){
+          if(!line.trim())continue;
+          try{
+            const row=JSON.parse(line);
+            const date=(row['Дата (первого взятия в работу)']||'').slice(0,10);
+            if(!date||date<json.start||date>json.end)continue;
+            if(json.omsuFilter?.length&&!json.omsuFilter.includes((row['ОМСУ']||'').trim()))continue;
+            if(json.sourceFilter?.length&&!json.sourceFilter.includes((row['Источник']||'').trim()))continue;
+            chunks.push(COLS.map(c=>escF(row[c])).join(';')+'\r\n');
+            total++;
+            if(total%5000===0)btn.textContent=`⏳ ${year}: ${total.toLocaleString('ru')} строк...`;
+          }catch(_){}
+        }
+      }
+      if(buf.trim()){
+        try{
+          const row=JSON.parse(buf);
+          const date=(row['Дата (первого взятия в работу)']||'').slice(0,10);
+          if(date&&date>=json.start&&date<=json.end){
+            const ok=(!json.omsuFilter?.length||json.omsuFilter.includes((row['ОМСУ']||'').trim()))
+                    &&(!json.sourceFilter?.length||json.sourceFilter.includes((row['Источник']||'').trim()));
+            if(ok){chunks.push(COLS.map(c=>escF(row[c])).join(';')+'\r\n');total++;}
+          }
+        }catch(_){}
+      }
     }
-    const wb=XLSX.utils.book_new();
-    const ws=XLSX.utils.aoa_to_sheet(aoa);
-    XLSX.utils.book_append_sheet(wb,ws,'Данные');
-    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
+
+    if(!total){alert('Нет данных за указанный период');return;}
+    btn.textContent='⏳ Формирование файла...';
+    const blob=new Blob(chunks,{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`export_${curPer.start}_${curPer.end}.csv`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
-  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в Excel';}
+  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в CSV';}
 };
 
 $('expHtml').onclick=()=>{
