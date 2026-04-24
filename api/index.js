@@ -533,14 +533,18 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
 // Processes data line-by-line: never loads the entire file into RAM.
 async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = []) {
   const { createGunzip } = await import('node:zlib');
+  const { StringDecoder } = await import('node:string_decoder');
 
   return new Promise((resolve, reject) => {
     const results = [];
     const gunzip = createGunzip();
+    // StringDecoder handles multi-byte UTF-8 chars split across chunk boundaries
+    const decoder = new StringDecoder('utf-8');
     let buf = '';
 
     gunzip.on('data', chunk => {
-      buf += chunk.toString('utf-8');
+      // decoder.write() correctly handles incomplete multi-byte sequences at boundaries
+      buf += decoder.write(chunk);
       const lines = buf.split('\n');
       buf = lines.pop(); // keep incomplete trailing line
       for (const line of lines) {
@@ -557,13 +561,15 @@ async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter 
     });
 
     gunzip.on('end', () => {
-      // flush last line if file doesn't end with \n
+      // flush remaining bytes from decoder + leftover buffer
+      buf += decoder.end();
       if (buf.trim()) {
         try {
-          const row = JSON.parse(buf);
+          const row = JSON.parse(buf.trim());
           const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
           if (date && date >= start && date <= end) {
-            if (omsuFilter.length === 0 || omsuFilter.includes((row['ОМСУ'] || '').trim()))
+            if ((omsuFilter.length === 0 || omsuFilter.includes((row['ОМСУ'] || '').trim())) &&
+                (sourceFilter.length === 0 || sourceFilter.includes((row['Источник'] || '').trim())))
               results.push(row);
           }
         } catch (_) {}
