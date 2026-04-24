@@ -91,8 +91,15 @@ export default async function handler(req, res) {
         'Описание','Почта заявителя','Управляющая компания','Адрес',
         'Улица','Дом'
       ];
+      // Clean value: strip HTML tags, normalize whitespace, handle special chars
+      const cleanVal = v => String(v ?? '')
+        .replace(/<[^>]+>/g, ' ')           // strip HTML tags like <br>
+        .replace(/[\r\n\t]/g, ' ')          // newlines to spaces
+        .replace(/\u202f|\u00a0/g, ' ')     // non-breaking spaces
+        .replace(/\s{2,}/g, ' ')             // collapse multiple spaces
+        .trim();
       const esc = v => {
-        const s = String(v ?? '').replace(/\r/g, ' ').replace(/\n/g, ' ');
+        const s = cleanVal(v);
         return (s.includes(';') || s.includes('"'))
           ? '"' + s.replace(/"/g, '""') + '"'
           : s;
