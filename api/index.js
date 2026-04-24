@@ -60,21 +60,52 @@ export default async function handler(req, res) {
       console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
     }));
 
-    // ── CSV export: return URLs for client-side browser download + filter params ──
-    // Browser fetches _rows.jsonl.gz directly, decompresses, filters and builds CSV.
-    // Bypasses Vercel 4.5MB response limit — works for any period size.
+    // ── CSV export: stream month-by-month to stay under Vercel 4.5MB limit ──
+    // Browser calls /api with exportMonth=YYYY-MM repeatedly, collects chunks.
     if (exportRaw) {
-      const rowsUrls = [...yearsNeeded].sort().map(year => ({
-        year,
-        url: `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`
-      }));
-      return res.status(200).json({
-        mode: 'client-csv',
-        rowsUrls,
-        start, end,
-        omsuFilter,
-        sourceFilter
-      });
+      // Return list of months to fetch
+      const months = [];
+      const s0 = new Date(start), e0 = new Date(end);
+      let cur = new Date(s0.getFullYear(), s0.getMonth(), 1);
+      while (cur <= e0) {
+        months.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
+        cur.setMonth(cur.getMonth() + 1);
+      }
+      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, yearsNeeded: [...yearsNeeded] });
+    }
+
+    // ── CSV chunk export: one month at a time ──
+    const { exportMonth } = req.body;
+    if (exportMonth) {
+      const monthStart = exportMonth + '-01';
+      const lastDay = new Date(parseInt(exportMonth.slice(0,4)), parseInt(exportMonth.slice(5,7)), 0).getDate();
+      const monthEnd = exportMonth + '-' + String(lastDay).padStart(2,'0');
+      const chunkStart = monthStart < start ? start : monthStart;
+      const chunkEnd   = monthEnd  > end   ? end   : monthEnd;
+
+      const COLS = [
+        'Порядковый номер','Номер ЕЦУР','Номер в источнике',
+        'Дата (первого взятия в работу)','Направление','Синт. группа',
+        'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
+        'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
+        'Описание','Почта заявителя','Управляющая компания','Адрес',
+        'Район','Населенный пункт','Улица','Дом','Внутренний Id'
+      ];
+      const esc = v => { const s=String(v??''); return (s.includes(';')||s.includes('"')||s.includes('\n')||s.includes('\r')) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+
+      // Determine which years needed for this month
+      const monthYear = parseInt(exportMonth.slice(0,4));
+      const rowsUrl = `https://github.com/${OWNER}/${REPO}/releases/download/data-${monthYear}/${monthYear}_rows.jsonl.gz`;
+      const hdrs = TOKEN ? { Authorization:`token ${TOKEN}`, Accept:'application/octet-stream' } : { Accept:'application/octet-stream' };
+
+      const r = await fetch(rowsUrl, { headers: hdrs, redirect: 'follow' });
+      if (!r.ok) {
+        return res.status(200).json({ rows: [], cols: COLS, month: exportMonth });
+      }
+
+      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter);
+      const csvRows = rows.map(row => COLS.map(c => esc(row[c])).join(';'));
+      return res.status(200).json({ rows: csvRows, cols: COLS, month: exportMonth, count: rows.length });
     }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
@@ -488,7 +519,7 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
 
 // ─── Decompress gzip JSONL stream, filter rows by date/omsu, return array ───
 // Processes data line-by-line: never loads the entire file into RAM.
-async function decompressJsonlGz(response, start, end, omsuFilter) {
+async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = []) {
   const { createGunzip } = await import('node:zlib');
 
   return new Promise((resolve, reject) => {
@@ -507,6 +538,7 @@ async function decompressJsonlGz(response, start, end, omsuFilter) {
           const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
           if (!date || date < start || date > end) continue;
           if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
+          if (sourceFilter.length > 0 && !sourceFilter.includes((row['Источник'] || '').trim())) continue;
           results.push(row);
         } catch (_) {}
       }
