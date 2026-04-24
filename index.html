@@ -220,7 +220,7 @@
       <div class="pb"><div class="pf" id="pf"></div></div>
     </div>
     <div class="abar" id="abar" style="display:none">
-      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в CSV</button>
+      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в Excel</button>
       <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
       <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
     </div>
@@ -734,7 +734,7 @@ $('expCsv').onclick=async()=>{
 
     // Step 2: fetch each month as a CSV chunk from server
     const {months,start,end,omsuFilter,sourceFilter}=init;
-    let csvLines=null; // header added on first chunk
+    let csvLines=null, chunk0cols=null; // header added on first chunk
     let total=0;
 
     for(let i=0;i<months.length;i++){
@@ -755,8 +755,8 @@ $('expCsv').onclick=async()=>{
       const chunk=await r.json();
 
       if(!csvLines){
-        // First chunk: add BOM + header
-        csvLines=['sep=;\r\n', '\uFEFF'+chunk.cols.join(';')];
+        chunk0cols=chunk.cols; // save for xlsx header
+        csvLines=[chunk.cols.join(';')]; // header row (no BOM needed for xlsx)
       }
       for(const row of (chunk.rows||[])) csvLines.push(row);
       total+=(chunk.count||0);
@@ -765,16 +765,38 @@ $('expCsv').onclick=async()=>{
 
     if(!total||!csvLines){alert('Нет данных за указанный период');return;}
 
-    btn.textContent='⏳ Формирование файла...';
-    const blob=new Blob([csvLines[0], csvLines.slice(1).join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`export_${curPer.start}_${curPer.end}.csv`;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    btn.textContent='⏳ Формирование Excel файла...';
+    // Load SheetJS and create proper xlsx (solves all encoding issues)
+    if(typeof XLSX==='undefined'){
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload=res;s.onerror=rej;document.head.appendChild(s);
+      });
+    }
+    // Build array of arrays: header + data rows
+    const cols=chunk0cols; // saved from first chunk
+    const aoa=[cols];
+    for(const line of csvLines.slice(1)){
+      // Parse the semicolon-delimited line back to array
+      const fields=[];let cur='',inQ=false;
+      for(let i=0;i<line.length;i++){
+        const c=line[i];
+        if(inQ){if(c==='"'&&line[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}
+        else if(c==='"')inQ=true;
+        else if(c===';'){fields.push(cur);cur='';}
+        else cur+=c;
+      }
+      fields.push(cur);
+      aoa.push(fields);
+    }
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb,ws,'Данные');
+    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
 
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
-  finally{btn.disabled=false; btn.textContent='📥 Выгрузить в CSV';}
+  finally{btn.disabled=false; btn.textContent='📥 Выгрузить в Excel';}
 };
 
 $('expHtml').onclick=()=>{
