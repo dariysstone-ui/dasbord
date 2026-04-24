@@ -756,7 +756,7 @@ $('expCsv').onclick=async()=>{
 
       if(!csvLines){
         // First chunk: add BOM + header
-        csvLines=['\uFEFF'+chunk.cols.join(';')];
+        csvLines=['sep=;\r\n', '\uFEFF'+chunk.cols.join(';')];
       }
       for(const row of (chunk.rows||[])) csvLines.push(row);
       total+=(chunk.count||0);
@@ -766,7 +766,7 @@ $('expCsv').onclick=async()=>{
     if(!total||!csvLines){alert('Нет данных за указанный период');return;}
 
     btn.textContent='⏳ Формирование файла...';
-    const blob=new Blob([csvLines.join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'});
+    const blob=new Blob([csvLines[0], csvLines.slice(1).join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download=`export_${curPer.start}_${curPer.end}.csv`;
