@@ -84,14 +84,19 @@ export default async function handler(req, res) {
       const chunkEnd   = monthEnd  > end   ? end   : monthEnd;
 
       const COLS = [
-        'Порядковый номер','Номер ЕЦУР','Номер в источнике',
-        'Дата (первого взятия в работу)','Направление','Синт. группа',
-        'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
-        'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
+        'Номер ЕЦУР','Номер в источнике',
+        'Дата (первого взятия в работу)','Синт. группа',
+        'Факт','Подтема','Статус','ОМСУ',
+        'Источник','Тип сообщения - 0 проблемы, 1 - предложения',
         'Описание','Почта заявителя','Управляющая компания','Адрес',
-        'Район','Населенный пункт','Улица','Дом','Внутренний Id'
+        'Улица','Дом'
       ];
-      const esc = v => { const s=String(v??''); return (s.includes(';')||s.includes('"')||s.includes('\n')||s.includes('\r')) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+      const esc = v => {
+        const s = String(v ?? '').replace(/\r/g, ' ').replace(/\n/g, ' ');
+        return (s.includes(';') || s.includes('"'))
+          ? '"' + s.replace(/"/g, '""') + '"'
+          : s;
+      };
 
       // Determine which years needed for this month
       const monthYear = parseInt(exportMonth.slice(0,4));
