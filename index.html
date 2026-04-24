@@ -715,85 +715,58 @@ $('genBtn').onclick=async()=>{
 $('expCsv').onclick=async()=>{
   if(!curPer){alert('Нет данных');return;}
   const btn=$('expCsv');
-  btn.disabled=true;btn.textContent='⏳ Запрос...';
+  btn.disabled=true; btn.textContent='⏳ Подготовка...';
   try{
-    // Step 1: get download URLs from API
+    // Step 1: get list of months to fetch
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        start:curPer.start,end:curPer.end,
-        compStart:curPer.compStart,compEnd:curPer.compEnd,
-        omsuFilter:curPer.omsu||[],
-        sourceFilter:curPer.src||[],
+        start:curPer.start, end:curPer.end,
+        compStart:curPer.compStart, compEnd:curPer.compEnd,
+        omsuFilter:curPer.omsu||[], sourceFilter:curPer.src||[],
         exportRaw:true
       })
     });
     if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.error||`Ошибка: ${resp.status}`);}
-    const json=await resp.json();
-    if(json.mode!=='client-csv'){throw new Error('Неожиданный ответ сервера');}
+    const init=await resp.json();
+    if(init.mode!=='chunked-csv') throw new Error('Неожиданный ответ сервера');
 
-    const COLS=[
-      'Порядковый номер','Номер ЕЦУР','Номер в источнике',
-      'Дата (первого взятия в работу)','Направление','Синт. группа',
-      'Факт','Подтема','Статус','Куратор','Исполнитель','ОМСУ',
-      'Источник','Спам (да/нет)','Тип сообщения - 0 проблемы, 1 - предложения',
-      'Описание','Почта заявителя','Управляющая компания','Адрес',
-      'Район','Населенный пункт','Улица','Дом','Внутренний Id'
-    ];
-    const escF=v=>{const s=String(v??'');return(s.includes(';')||s.includes('"')||s.includes('\n')||s.includes('\r'))?'"'+s.replace(/"/g,'""')+'"':s;};
-
-    // Step 2: browser fetches gzip directly — no server RAM limit
-    const chunks=['\uFEFF'+COLS.map(escF).join(';')+'\r\n'];
+    // Step 2: fetch each month as a CSV chunk from server
+    const {months,start,end,omsuFilter,sourceFilter}=init;
+    let csvLines=null; // header added on first chunk
     let total=0;
 
-    for(const {year,url} of json.rowsUrls){
-      btn.textContent=`⏳ Загрузка ${year}...`;
-      const r=await fetch(url);
-      if(!r.ok){console.warn(`${year}_rows.jsonl.gz not found`);continue;}
+    for(let i=0;i<months.length;i++){
+      const month=months[i];
+      btn.textContent=`⏳ ${month} (${i+1}/${months.length})...`;
 
-      const ds=new DecompressionStream('gzip');
-      const stream=r.body.pipeThrough(ds);
-      const reader=stream.getReader();
-      const dec=new TextDecoder('utf-8');
-      let buf='';
+      const r=await fetch('/api',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          start, end,
+          compStart:curPer.compStart, compEnd:curPer.compEnd,
+          omsuFilter, sourceFilter,
+          exportMonth:month
+        })
+      });
+      if(!r.ok) continue;
+      const chunk=await r.json();
 
-      while(true){
-        const {done,value}=await reader.read();
-        if(done)break;
-        buf+=dec.decode(value,{stream:true});
-        const lines=buf.split('\n');
-        buf=lines.pop();
-        for(const line of lines){
-          if(!line.trim())continue;
-          try{
-            const row=JSON.parse(line);
-            const date=(row['Дата (первого взятия в работу)']||'').slice(0,10);
-            if(!date||date<json.start||date>json.end)continue;
-            if(json.omsuFilter?.length&&!json.omsuFilter.includes((row['ОМСУ']||'').trim()))continue;
-            if(json.sourceFilter?.length&&!json.sourceFilter.includes((row['Источник']||'').trim()))continue;
-            chunks.push(COLS.map(c=>escF(row[c])).join(';')+'\r\n');
-            total++;
-            if(total%5000===0)btn.textContent=`⏳ ${year}: ${total.toLocaleString('ru')} строк...`;
-          }catch(_){}
-        }
+      if(!csvLines){
+        // First chunk: add BOM + header
+        csvLines=['\uFEFF'+chunk.cols.join(';')];
       }
-      if(buf.trim()){
-        try{
-          const row=JSON.parse(buf);
-          const date=(row['Дата (первого взятия в работу)']||'').slice(0,10);
-          if(date&&date>=json.start&&date<=json.end){
-            const ok=(!json.omsuFilter?.length||json.omsuFilter.includes((row['ОМСУ']||'').trim()))
-                    &&(!json.sourceFilter?.length||json.sourceFilter.includes((row['Источник']||'').trim()));
-            if(ok){chunks.push(COLS.map(c=>escF(row[c])).join(';')+'\r\n');total++;}
-          }
-        }catch(_){}
-      }
+      for(const row of (chunk.rows||[])) csvLines.push(row);
+      total+=(chunk.count||0);
+      btn.textContent=`⏳ ${month}: ${total.toLocaleString('ru')} строк...`;
     }
 
-    if(!total){alert('Нет данных за указанный период');return;}
+    if(!total||!csvLines){alert('Нет данных за указанный период');return;}
+
     btn.textContent='⏳ Формирование файла...';
-    const blob=new Blob(chunks,{type:'text/csv;charset=utf-8'});
+    const blob=new Blob([csvLines.join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download=`export_${curPer.start}_${curPer.end}.csv`;
@@ -801,7 +774,7 @@ $('expCsv').onclick=async()=>{
     setTimeout(()=>URL.revokeObjectURL(a.href),10000);
 
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
-  finally{btn.disabled=false;btn.textContent='📥 Выгрузить в CSV';}
+  finally{btn.disabled=false; btn.textContent='📥 Выгрузить в CSV';}
 };
 
 $('expHtml').onclick=()=>{
