@@ -60,35 +60,21 @@ export default async function handler(req, res) {
       console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
     }));
 
-    // ── Raw export mode: fetch {year}_rows.jsonl.gz, decompress, filter, return ──
-    // File contains ALL columns including "Описание", compressed with gzip (~70-90 MB).
-    // We decompress line-by-line (JSONL) to keep memory low.
+    // ── CSV export: return URLs for client-side browser download + filter params ──
+    // Browser fetches _rows.jsonl.gz directly, decompresses, filters and builds CSV.
+    // Bypasses Vercel 4.5MB response limit — works for any period size.
     if (exportRaw) {
-      const rowsUrl = (year) =>
-        `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`;
-
-      let allRawRows = [];
-
-      // Process years sequentially to avoid parallel RAM spikes
-      for (const year of [...yearsNeeded].sort()) {
-        const url = rowsUrl(year);
-        const hdrs = TOKEN
-          ? { Authorization: `token ${TOKEN}`, Accept: 'application/octet-stream' }
-          : { Accept: 'application/octet-stream' };
-
-        const resp = await fetch(url, { headers: hdrs, redirect: 'follow' });
-        if (!resp.ok) {
-          console.warn(`${year}_rows.jsonl.gz not found — run aggregate_csv.py first`);
-          continue;
-        }
-
-        // Decompress gzip stream line by line without loading everything into RAM
-        const yearRows = await decompressJsonlGz(resp, start, end, omsuFilter);
-        allRawRows = allRawRows.concat(yearRows);
-        console.log(`Export ${year}: ${yearRows.length} rows (filtered)`);
-      }
-
-      return res.status(200).json({ rawRows: allRawRows });
+      const rowsUrls = [...yearsNeeded].sort().map(year => ({
+        year,
+        url: `https://github.com/${OWNER}/${REPO}/releases/download/data-${year}/${year}_rows.jsonl.gz`
+      }));
+      return res.status(200).json({
+        mode: 'client-csv',
+        rowsUrls,
+        start, end,
+        omsuFilter,
+        sourceFilter
+      });
     }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
@@ -228,6 +214,18 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
         }
         dst.total += groupTotal;
         total += groupTotal;
+        // Add mails — include if any of mail's omsus match the filter
+        for (const [mail, md] of Object.entries(g.mails || {})) {
+          const mailOmsus = (md.omsus || []).filter(o => omsuFilter.includes(o));
+          if (mailOmsus.length === 0) continue;
+          if (!dst.mails[mail]) dst.mails[mail] = { c: 0, facts: {}, omsus: [] };
+          dst.mails[mail].c += md.c || 0;
+          for (const [f, n] of Object.entries(md.facts || {}))
+            dst.mails[mail].facts[f] = (dst.mails[mail].facts[f] || 0) + n;
+          const exM = new Set(dst.mails[mail].omsus);
+          for (const o of mailOmsus) exM.add(o);
+          dst.mails[mail].omsus = [...exM];
+        }
       }
     }
   }
@@ -270,6 +268,42 @@ function addToGroup(dst, g) {
     for (const [s, n] of Object.entries(v.subs || {})) {
       dst.addrs[k].subs[s] = (dst.addrs[k].subs[s] || 0) + n;
     }
+  }
+}
+
+// ─── Scale group values by ratio (used when sourceFilter applied without omsuFilter) ───
+function addToGroupScaled(dst, g, ratio) {
+  const sc = v => Math.max(1, Math.round(v * ratio));
+  dst.total += Math.round((g.total || 0) * ratio);
+  for (const [k, v] of Object.entries(g.subs || {})) {
+    if (!dst.subs[k]) dst.subs[k] = { count: 0, facts: {} };
+    dst.subs[k].count += sc(v.count || 0);
+    for (const [f, n] of Object.entries(v.facts || {}))
+      dst.subs[k].facts[f] = (dst.subs[k].facts[f] || 0) + sc(n);
+  }
+  for (const [k, v] of Object.entries(g.omsu || {})) {
+    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {} };
+    dst.omsu[k].c += sc(v.c || 0);
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.omsu[k].subs[s] = (dst.omsu[k].subs[s] || 0) + sc(n);
+  }
+  for (const [k, n] of Object.entries(g.facts || {}))
+    dst.facts[k] = (dst.facts[k] || 0) + sc(n);
+  for (const [k, v] of Object.entries(g.mails || {})) {
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [] };
+    dst.mails[k].c += sc(v.c || 0);
+    for (const [f, n] of Object.entries(v.facts || {}))
+      dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + sc(n);
+    // preserve omsus tags
+    const exS = new Set(dst.mails[k].omsus);
+    for (const o of (v.omsus || [])) exS.add(o);
+    dst.mails[k].omsus = [...exS];
+  }
+  for (const [k, v] of Object.entries(g.addrs || {})) {
+    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {} };
+    dst.addrs[k].c += sc(v.c || 0);
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.addrs[k].subs[s] = (dst.addrs[k].subs[s] || 0) + sc(n);
   }
 }
 
@@ -387,6 +421,69 @@ function parseCSV(text) {
   }
   if (field || fields.length) { commitField(); commitRow(); }
   return rows;
+}
+
+
+// ─── Stream gzip JSONL → filter → write CSV lines to response (zero RAM accumulation) ───
+async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter, cols, escCsv, res) {
+  const { createGunzip } = await import('node:zlib');
+
+  return new Promise((resolve, reject) => {
+    let count = 0;
+    const gunzip = createGunzip();
+    let buf = '';
+
+    gunzip.on('data', chunk => {
+      buf += chunk.toString('utf-8');
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const row = JSON.parse(line);
+          const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
+          if (!date || date < start || date > end) continue;
+          if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
+          if (sourceFilter.length > 0 && !sourceFilter.includes((row['Источник'] || '').trim())) continue;
+          res.write(cols.map(c => escCsv(row[c])).join(';') + '\r\n');
+          count++;
+        } catch (_) {}
+      }
+    });
+
+    gunzip.on('end', () => {
+      if (buf.trim()) {
+        try {
+          const raw = JSON.parse(buf);
+          const row = {};
+          for (const [k, v] of Object.entries(raw)) row[k.trim()] = v;
+          const date = (row['Дата (первого взятия в работу)'] || '').slice(0, 10);
+          if (date && date >= start && date <= end) {
+            const omsuOk = omsuFilter.length === 0 || omsuFilter.includes((row['ОМСУ'] || '').trim());
+            const srcOk  = sourceFilter.length === 0 || sourceFilter.includes((row['Источник'] || '').trim());
+            if (omsuOk && srcOk) {
+              res.write(cols.map(c => escCsv(row[c])).join(';') + '\r\n');
+              count++;
+            }
+          }
+        } catch (_) {}
+      }
+      resolve(count);
+    });
+
+    gunzip.on('error', reject);
+
+    const reader = response.body.getReader();
+    (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { gunzip.end(); break; }
+          gunzip.write(Buffer.from(value));
+        }
+      } catch (e) { reject(e); }
+    })();
+  });
 }
 
 // ─── Decompress gzip JSONL stream, filter rows by date/omsu, return array ───
