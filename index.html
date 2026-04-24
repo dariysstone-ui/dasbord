@@ -220,7 +220,7 @@
       <div class="pb"><div class="pf" id="pf"></div></div>
     </div>
     <div class="abar" id="abar" style="display:none">
-      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в Excel</button>
+      <button class="btn btn-s btn-sm" id="expCsv">📥 Выгрузить в CSV</button>
       <button class="btn btn-g btn-sm" id="expHtml">📤 Экспорт HTML</button>
       <span id="dataInfo" style="font-size:11px;color:var(--tm);align-self:center"></span>
     </div>
@@ -712,6 +712,48 @@ $('genBtn').onclick=async()=>{
 // EXPORT HTML
 // ═══════════════════════════════════
 
+
+// CP1251 encoding table (Unicode -> CP1251 byte)
+// Build lookup: only chars that differ from latin need mapping
+function buildCp1251Blob(text) {
+  // CP1251 map: unicode codepoint -> byte value for Cyrillic range
+  const buf = new Uint8Array(text.length);
+  let len = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    let byte;
+    if (code < 0x80) {
+      byte = code; // ASCII unchanged
+    } else if (code >= 0x0410 && code <= 0x044F) {
+      byte = code - 0x0410 + 0xC0; // А-п -> 0xC0-0xEF
+    } else if (code >= 0x0450 && code <= 0x045F) {
+      byte = code - 0x0450 + 0xD0; // ѐ-џ (overlap, approximate)
+      byte = 0x3F; // replace with ?
+    } else {
+      // Special CP1251 chars
+      const special = {
+        0x0402:0x80, 0x0403:0x81, 0x201A:0x82, 0x0453:0x83, 0x201E:0x84,
+        0x2026:0x85, 0x2020:0x86, 0x2021:0x87, 0x20AC:0x88, 0x2030:0x89,
+        0x0409:0x8A, 0x2039:0x8B, 0x040A:0x8C, 0x040C:0x8D, 0x040B:0x8E,
+        0x040F:0x8F, 0x0452:0x90, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93,
+        0x201D:0x94, 0x2022:0x95, 0x2013:0x96, 0x2014:0x97, 0x0098:0x98,
+        0x2122:0x99, 0x0459:0x9A, 0x203A:0x9B, 0x045A:0x9C, 0x045C:0x9D,
+        0x045B:0x9E, 0x045F:0x9F, 0x00A0:0xA0, 0x040E:0xA1, 0x045E:0xA2,
+        0x0408:0xA3, 0x00A4:0xA4, 0x0490:0xA5, 0x00A6:0xA6, 0x00A7:0xA7,
+        0x0401:0xA8, 0x00A9:0xA9, 0x0404:0xAA, 0x00AB:0xAB, 0x00AC:0xAC,
+        0x00AD:0xAD, 0x00AE:0xAE, 0x0407:0xAF, 0x00B0:0xB0, 0x00B1:0xB1,
+        0x0406:0xB2, 0x0456:0xB3, 0x0491:0xB4, 0x00B5:0xB5, 0x00B6:0xB6,
+        0x00B7:0xB7, 0x0451:0xB8, 0x2116:0xB9, 0x0454:0xBA, 0x00BB:0xBB,
+        0x0458:0xBC, 0x0405:0xBD, 0x0455:0xBE, 0x0457:0xBF,
+        0x0050:0x50
+      };
+      byte = special[code] ?? 0x3F; // unknown -> '?'
+    }
+    buf[len++] = byte;
+  }
+  return new Blob([buf.subarray(0, len)], {type:'text/csv;charset=windows-1251'});
+}
+
 $('expCsv').onclick=async()=>{
   if(!curPer){alert('Нет данных');return;}
   const btn=$('expCsv');
@@ -734,7 +776,7 @@ $('expCsv').onclick=async()=>{
 
     // Step 2: fetch each month as a CSV chunk from server
     const {months,start,end,omsuFilter,sourceFilter}=init;
-    let csvLines=null, chunk0cols=null; // header added on first chunk
+    let csvLines=null;
     let total=0;
 
     for(let i=0;i<months.length;i++){
@@ -755,8 +797,7 @@ $('expCsv').onclick=async()=>{
       const chunk=await r.json();
 
       if(!csvLines){
-        chunk0cols=chunk.cols; // save for xlsx header
-        csvLines=[chunk.cols.join(';')]; // header row (no BOM needed for xlsx)
+        csvLines=[chunk.cols.join(';')];
       }
       for(const row of (chunk.rows||[])) csvLines.push(row);
       total+=(chunk.count||0);
@@ -765,38 +806,18 @@ $('expCsv').onclick=async()=>{
 
     if(!total||!csvLines){alert('Нет данных за указанный период');return;}
 
-    btn.textContent='⏳ Формирование Excel файла...';
-    // Load SheetJS and create proper xlsx (solves all encoding issues)
-    if(typeof XLSX==='undefined'){
-      await new Promise((res,rej)=>{
-        const s=document.createElement('script');
-        s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-        s.onload=res;s.onerror=rej;document.head.appendChild(s);
-      });
-    }
-    // Build array of arrays: header + data rows
-    const cols=chunk0cols; // saved from first chunk
-    const aoa=[cols];
-    for(const line of csvLines.slice(1)){
-      // Parse the semicolon-delimited line back to array
-      const fields=[];let cur='',inQ=false;
-      for(let i=0;i<line.length;i++){
-        const c=line[i];
-        if(inQ){if(c==='"'&&line[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}
-        else if(c==='"')inQ=true;
-        else if(c===';'){fields.push(cur);cur='';}
-        else cur+=c;
-      }
-      fields.push(cur);
-      aoa.push(fields);
-    }
-    const wb=XLSX.utils.book_new();
-    const ws=XLSX.utils.aoa_to_sheet(aoa);
-    XLSX.utils.book_append_sheet(wb,ws,'Данные');
-    XLSX.writeFile(wb,`export_${curPer.start}_${curPer.end}.xlsx`);
+    btn.textContent='⏳ Формирование файла...';
+    // Build CP1251-encoded CSV — Excel opens it correctly by double-click on Windows
+    // Encode each character to CP1251, replace unencodable chars with ?
+    const cp1251 = buildCp1251Blob(csvLines.join('\r\n') + '\r\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(cp1251);
+    a.download=`export_${curPer.start}_${curPer.end}.csv`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
 
   }catch(err){alert('Ошибка: '+err.message);console.error(err);}
-  finally{btn.disabled=false; btn.textContent='📥 Выгрузить в Excel';}
+  finally{btn.disabled=false; btn.textContent='📥 Выгрузить в CSV';}
 };
 
 $('expHtml').onclick=()=>{
