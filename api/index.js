@@ -415,7 +415,7 @@ function processDashboardData(main, comp) {
         mainSub:ss[0]?.[0]||'-', mainSubCnt:ss[0]?.[1]||0,
         mainSubPct: (d.c||0)>0 ? Math.round((ss[0]?.[1]||0)/d.c*100) : 0 });
     });
-    Object.entries(m.mails||{}).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
+    Object.entries(m.mails||{}).filter(([k])=>!k.includes('konus.group')).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
       entry.mails.push({ email:k, count:d.c||0, facts:Object.entries(d.facts||{}).sort((a,b)=>b[1]-a[1]), omsus:d.omsus||[] });
     });
     Object.entries(m.addrs||{}).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
