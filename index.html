@@ -726,9 +726,6 @@ function buildCp1251Blob(text) {
       byte = code; // ASCII unchanged
     } else if (code >= 0x0410 && code <= 0x044F) {
       byte = code - 0x0410 + 0xC0; // А-п -> 0xC0-0xEF
-    } else if (code >= 0x0450 && code <= 0x045F) {
-      byte = code - 0x0450 + 0xD0; // ѐ-џ (overlap, approximate)
-      byte = 0x3F; // replace with ?
     } else {
       // Special CP1251 chars
       const special = {
