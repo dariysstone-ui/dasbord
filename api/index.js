@@ -194,11 +194,12 @@ function mergeGroup(dst, src) {
   }
   // addrs
   for (const [k, v] of Object.entries(src.addrs || {})) {
-    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {} };
+    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {}, omsus: {} };
     dst.addrs[k].c += v.c || 0;
-    for (const [s, n] of Object.entries(v.subs || {})) {
+    for (const [s, n] of Object.entries(v.subs || {}))
       dst.addrs[k].subs[s] = (dst.addrs[k].subs[s] || 0) + n;
-    }
+    for (const [o, n] of Object.entries(v.omsus || {}))
+      dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o] || 0) + n;
   }
 }
 
@@ -269,15 +270,17 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
           for (const o of mailOmsus) exM.add(o);
           dst.mails[mail].omsus = [...exM];
         }
-        // Add addrs — scale proportionally by OMSU share
-        if (groupTotal > 0 && (g.total || 0) > 0) {
-          const addrRatio = groupTotal / g.total;
-          for (const [addr, ad] of Object.entries(g.addrs || {})) {
-            if (!dst.addrs[addr]) dst.addrs[addr] = { c: 0, subs: {} };
-            dst.addrs[addr].c += Math.max(1, Math.round((ad.c || 0) * addrRatio));
-            for (const [s, n] of Object.entries(ad.subs || {}))
-              dst.addrs[addr].subs[s] = (dst.addrs[addr].subs[s] || 0) + Math.max(1, Math.round(n * addrRatio));
-          }
+        // Add addrs — only include addresses that belong to selected OMSUs
+        for (const [addr, ad] of Object.entries(g.addrs || {})) {
+          // Sum counts only for selected OMSUs
+          const addrOmsuCount = omsuFilter.reduce((sum, o) => sum + (ad.omsus?.[o] || 0), 0);
+          if (addrOmsuCount === 0) continue;
+          if (!dst.addrs[addr]) dst.addrs[addr] = { c: 0, subs: {} };
+          dst.addrs[addr].c += addrOmsuCount;
+          // Scale subs proportionally
+          const addrRatio = ad.c > 0 ? addrOmsuCount / ad.c : 0;
+          for (const [s, n] of Object.entries(ad.subs || {}))
+            dst.addrs[addr].subs[s] = (dst.addrs[addr].subs[s] || 0) + Math.round(n * addrRatio);
         }
       }
     }
@@ -316,11 +319,12 @@ function addToGroup(dst, g) {
     dst.mails[k].omsus = [...ex];
   }
   for (const [k, v] of Object.entries(g.addrs || {})) {
-    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {} };
+    if (!dst.addrs[k]) dst.addrs[k] = { c: 0, subs: {}, omsus: {} };
     dst.addrs[k].c += v.c || 0;
-    for (const [s, n] of Object.entries(v.subs || {})) {
+    for (const [s, n] of Object.entries(v.subs || {}))
       dst.addrs[k].subs[s] = (dst.addrs[k].subs[s] || 0) + n;
-    }
+    for (const [o, n] of Object.entries(v.omsus || {}))
+      dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o] || 0) + n;
   }
 }
 
