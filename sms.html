@@ -67,6 +67,7 @@
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -109,6 +110,7 @@
   <div class="btn-row">
     <button class="btn primary" id="generate-btn" onclick="generateSms()">▶ Сформировать СМС</button>
     <button class="btn" id="copy-btn" onclick="copyReport()" style="display:none">⧉ Скопировать</button>
+    <button class="btn" id="excel-btn" onclick="exportExcel()" style="display:none;background:var(--green);border-color:var(--green);color:#fff">📊 Выгрузить Excel</button>
     <button class="btn" id="clear-btn" onclick="clearAll()" style="display:none">✕ Очистить</button>
   </div>
 
@@ -301,9 +303,10 @@ async function generateSms(){
     const prevLabel = sameDay
       ? 'предыдущему дню'
       : `предыдущему периоду (${fmtRuShort(prevFrom)}–${fmtRuShort(prevTo)})`;
+    const wkYear = wkFrom.getFullYear();
     const wkLabel = sameDay
-      ? `${dayDat} прошлой недели`
-      : `аналогичному периоду прошлой недели (${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)})`;
+      ? `${dayDat} прошлой недели ${wkYear}`
+      : `аналогичному периоду прошлой недели ${wkYear} (${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)})`;
     const y25Year = y25From.getFullYear();
     const y25Label = sameDay
       ? `АППГ ${y25Year} (${fmtRuShort(y25From)})`
@@ -311,12 +314,12 @@ async function generateSms(){
 
     const msg=[];
 
-    msg.push(` Докладываю по жалобам за ${periodLabel}:`);
+    msg.push(`📋 Докладываю по жалобам за ${periodLabel}:`);
     msg.push('');
     msg.push(`🔘 ДВОР поступило ${formatNum(mainTotal)} ${plural(mainTotal)}`);
     msg.push(`   ${fmtDyn(mainTotal,prevTotal)} к ${prevLabel} / ${fmtDyn(mainTotal,y25Total)} к ${y25Label} / ${fmtDyn(mainTotal,wkTotal)} к ${wkLabel}`);
     msg.push('');
-    msg.push(`   С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)} / ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
+    msg.push(`   📊 С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)} / ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
     msg.push('');
 
     blockOrder.forEach((id,bi)=>{
@@ -334,7 +337,7 @@ async function generateSms(){
       msg.push(`${EMOJIS[bi]} ${blockDef.name.toUpperCase()} — ${formatNum(cur)} ${plural(cur)}`);
       msg.push(`   ${fmtDyn(cur,prev)} к ${prevLabel} / ${fmtDyn(cur,y25)} к ${y25Label} / ${fmtDyn(cur,wk)} к ${wkLabel}`);
       msg.push('');
-      msg.push(`   С начала года: ${formatNum(ytd)} ${plural(ytd)} / ${fmtDyn(ytd,ytd25)} к АППГ`);
+      msg.push(`   📊 С начала года: ${formatNum(ytd)} ${plural(ytd)} / ${fmtDyn(ytd,ytd25)} к АППГ`);
       msg.push('');
 
       const topSubs=getTopSubsWithOmsu(mainG, blockDef.topN, prevG, y25G, wkG);
@@ -349,7 +352,8 @@ async function generateSms(){
           if(dynY25)  dynParts.push(`${dynY25} к ${y25Label}`);
           if(dynWk)   dynParts.push(`${dynWk} к ${wkLabel}`);
           msg.push(`   ${si+1}. ${s.name}: ${formatNum(s.count)} / ${dynParts.join(' / ')}`);
-          s.topOmsu.forEach(o => msg.push(`       ${o}`));
+          s.topOmsu.forEach(o => msg.push(`      🔸 ${o}`));
+          msg.push(''); // blank line between subtopics
         });
       }
       msg.push('');
@@ -358,9 +362,14 @@ async function generateSms(){
 
     msg.push('🔷 Выгрузку обращений прикладываем, информация по жалобам (рекомендуем смотреть через компьютер)');
 
+    // Save for Excel export
+    window._smsExportData = { mainData, prevData, y25Data, wkData, fromStr, toStr,
+      prevFrom, prevTo, y25From, y25To, wkFrom, wkTo, sameDay, periodLabel };
+
     document.getElementById('output-text').textContent=msg.join('\n');
     document.getElementById('output-card').classList.add('visible');
     document.getElementById('copy-btn').style.display='';
+    document.getElementById('excel-btn').style.display='';
     document.getElementById('clear-btn').style.display='';
     setStatus('✓ СМС готова','ok');
 
@@ -369,6 +378,135 @@ async function generateSms(){
     setStatus('✗ Ошибка: '+err.message,'err');
   }finally{
     btn.disabled=false;btn.innerHTML='▶ Сформировать СМС';
+  }
+}
+
+
+async function exportExcel() {
+  const d = window._smsExportData;
+  if (!d) { alert('Сначала сформируйте СМС'); return; }
+  const btn = document.getElementById('excel-btn');
+  btn.disabled = true; btn.textContent = '⏳ Формирование...';
+
+  try {
+    const wb = XLSX.utils.book_new();
+    const COLS = ['Номер ЕЦУР','Номер в источнике','Дата (первого взятия в работу)',
+      'Направление','Синт. группа','Факт','Подтема','Статус','ОМСУ','Источник',
+      'Тип сообщения - 0 проблемы, 1 - предложения','Описание',
+      'Почта заявителя','Управляющая компания','Адрес','Улица','Дом'];
+
+    // ── Sheet 1: raw rows from API (exportMonth) ──
+    const apiUrl = document.getElementById('apiUrl').value.trim();
+    const rowsResp = await fetch(apiUrl, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        start: d.fromStr, end: d.toStr,
+        compStart: d.fromStr, compEnd: d.toStr,
+        omsuFilter:[], sourceFilter:[], subFilter:[], sgFilter:[],
+        exportRaw: true
+      })
+    });
+    if (!rowsResp.ok) throw new Error('Ошибка загрузки строк');
+    const rowsInit = await rowsResp.json();
+
+    let rawRows = [];
+    if (rowsInit.mode === 'chunked-csv') {
+      for (const month of rowsInit.months) {
+        const mr = await fetch(apiUrl, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            start: d.fromStr, end: d.toStr,
+            compStart: d.fromStr, compEnd: d.toStr,
+            omsuFilter:[], sourceFilter:[], subFilter:[], sgFilter:[],
+            exportMonth: month
+          })
+        });
+        if (!mr.ok) continue;
+        const mc = await mr.json();
+        rawRows = rawRows.concat(mc.rows || []);
+      }
+    }
+
+    // Build sheet 1: Детализация
+    const aoa1 = [COLS];
+    for (const rowStr of rawRows) {
+      const fields = [];
+      let cur='', inQ=false;
+      for (let i=0; i<rowStr.length; i++) {
+        const c=rowStr[i];
+        if(inQ){if(c==='"'&&rowStr[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}
+        else if(c==='"')inQ=true;
+        else if(c===';'){fields.push(cur);cur='';}
+        else cur+=c;
+      }
+      fields.push(cur);
+      // Match to COLS order (server sends all 16 export cols)
+      aoa1.push(fields);
+    }
+    const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Детализация');
+
+    // ── Sheet 2: Сводная по синт. группам ──
+    const SG_ORDER = ['Содержание территории','МКД','Контейнерная площадка'];
+    const getTotal = (data, name) => {
+      const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
+      const g = (data?.data||[]).find(x => norm(x.name)===norm(name) || norm(x.name).includes(norm(name)));
+      return g?.total || 0;
+    };
+    const getSubs = (data, name, n) => {
+      const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
+      const g = (data?.data||[]).find(x => norm(x.name)===norm(name) || norm(x.name).includes(norm(name)));
+      return (g?.subs||[]).slice(0,n);
+    };
+
+    const aoa2 = [];
+    aoa2.push(['Синт. группа / Подтема', `Основной\n${d.periodLabel}`,
+      `Пред. ${d.sameDay ? 'день' : 'период'}`, 'Δ пред.',
+      `АППГ\n${d.y25From.getFullYear()}`, 'Δ АППГ',
+      `Прош. неделя`, 'Δ нед.']);
+
+    const TOPS = {'Содержание территории':4, 'МКД':3, 'Контейнерная площадка':4};
+    for (const sgName of SG_ORDER) {
+      const cur  = getTotal(d.mainData, sgName);
+      const prev = getTotal(d.prevData, sgName);
+      const y25  = getTotal(d.y25Data,  sgName);
+      const wk   = getTotal(d.wkData,   sgName);
+      const dPrev = cur - prev, dY25 = cur - y25, dWk = cur - wk;
+      const pPrev = prev>0?Math.round(dPrev/prev*100):0;
+      const pY25  = y25>0?Math.round(dY25/y25*100):0;
+      const pWk   = wk>0?Math.round(dWk/wk*100):0;
+      aoa2.push([sgName, cur, prev, `${dPrev>=0?'+':''}${dPrev} (${dPrev>=0?'+':''}${pPrev}%)`,
+        y25, `${dY25>=0?'+':''}${dY25} (${dY25>=0?'+':''}${pY25}%)`,
+        wk, `${dWk>=0?'+':''}${dWk} (${dWk>=0?'+':''}${pWk}%)`]);
+
+      const subs = getSubs(d.mainData, sgName, TOPS[sgName]||4);
+      const prevSubs={}, y25Subs={}, wkSubs={};
+      (d.prevData?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>prevSubs[s.name]=s.count);
+      (d.y25Data?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>y25Subs[s.name]=s.count);
+      (d.wkData?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>wkSubs[s.name]=s.count);
+
+      subs.forEach(s => {
+        const sc=s.count||0, sp=prevSubs[s.name]||0, sy=y25Subs[s.name]||0, sw=wkSubs[s.name]||0;
+        const dp=sc-sp, dy=sc-sy, dw=sc-sw;
+        const pp=sp>0?Math.round(dp/sp*100):0, py=sy>0?Math.round(dy/sy*100):0, pw=sw>0?Math.round(dw/sw*100):0;
+        aoa2.push([`  — ${s.name}`, sc, sp, `${dp>=0?'+':''}${dp} (${dp>=0?'+':''}${pp}%)`,
+          sy, `${dy>=0?'+':''}${dy} (${dy>=0?'+':''}${py}%)`,
+          sw, `${dw>=0?'+':''}${dw} (${dw>=0?'+':''}${pw}%)`]);
+      });
+      aoa2.push([]); // blank row between groups
+    }
+    const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+    // Column widths
+    ws2['!cols'] = [{wch:45},{wch:12},{wch:12},{wch:18},{wch:12},{wch:18},{wch:12},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Сводная');
+
+    const fname = `СМС_${d.fromStr}${d.sameDay?'':('_'+d.toStr)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+
+  } catch(err) {
+    alert('Ошибка: ' + err.message); console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = '📊 Выгрузить Excel';
   }
 }
 
@@ -388,6 +526,7 @@ function clearAll(){
   document.getElementById('output-text').textContent='';
   document.getElementById('output-card').classList.remove('visible');
   document.getElementById('copy-btn').style.display='none';
+  document.getElementById('excel-btn').style.display='none';
   document.getElementById('clear-btn').style.display='none';
   document.getElementById('periodHint').textContent='';
   setStatus('','');
