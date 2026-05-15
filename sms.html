@@ -283,12 +283,17 @@ async function generateSms(){
 
     setStatus('Формирование СМС…','');
 
-    const mainTotal=mainData.data.reduce((s,g)=>s+(g.total||0),0);
-    const prevTotal=prevData.data.reduce((s,g)=>s+(g.total||0),0);
-    const y25Total=y25Data.data.reduce((s,g)=>s+(g.total||0),0);
-    const wkTotal=wkData.data.reduce((s,g)=>s+(g.total||0),0);
-    const ytdTotal=ytdData.data.reduce((s,g)=>s+(g.total||0),0);
-    const ytd25Total=ytd25Data.data.reduce((s,g)=>s+(g.total||0),0);
+    // Only sum the 3 main groups, exclude Содержание муниципальных дорог
+    const DVDR_GROUPS = ['Содержание территории','МКД','Контейнерная площадка'];
+    const sumGroups = (data) => (data.data||[])
+      .filter(g => DVDR_GROUPS.some(n => g.name?.toLowerCase().replace(/ё/g,'е').includes(n.toLowerCase().replace(/ё/g,'е'))))
+      .reduce((s,g) => s+(g.total||0), 0);
+    const mainTotal=sumGroups(mainData);
+    const prevTotal=sumGroups(prevData);
+    const y25Total=sumGroups(y25Data);
+    const wkTotal=sumGroups(wkData);
+    const ytdTotal=sumGroups(ytdData);
+    const ytd25Total=sumGroups(ytd25Data);
 
     const sameDay = fromStr === toStr;
     const fromDate = new Date(fromStr), toDate = new Date(toStr);
