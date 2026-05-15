@@ -359,35 +359,6 @@ window.clearSrc=function(e){
   updSrc();
 };
 
-document.addEventListener('click',e=>{
-  if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
-  if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
-  if(!e.target.closest('#subFilter'))$('subDrop').classList.remove('show');
-});
-
-
-function initSrc(){
-  // search already added above
-}
-function toggleSrc(e){e.stopPropagation();$('srcDrop').classList.toggle('show');}
-function togSrc(s,e){
-  e.stopPropagation();
-  const cb=$(`src-${s.replace(/\s+/g,'-')}`);
-  if(cb.checked)selSrc.add(s);else selSrc.delete(s);
-  updSrc();
-}
-function updSrc(){
-  const n=selSrc.size;
-  $('srcP').textContent=n===0?'Все источники':n===1?[...selSrc][0]:`Выбрано: ${n}`;
-  const cb=$('srcClearBtn');if(cb)cb.style.display=n>0?'':'none';
-}
-window.clearSrc=function(e){
-  e.stopPropagation();
-  selSrc.clear();
-  document.querySelectorAll('.srd input[type=checkbox]').forEach(c=>c.checked=false);
-  updSrc();
-};
-
 // ═══════════════════════════════════
 // ═══════════════════════════════════
 // PROGRESS
