@@ -389,15 +389,10 @@ async function exportExcel() {
   btn.disabled = true; btn.textContent = '⏳ Формирование...';
 
   try {
-    const wb = XLSX.utils.book_new();
-    const COLS = ['Номер ЕЦУР','Номер в источнике','Дата (первого взятия в работу)',
-      'Направление','Синт. группа','Факт','Подтема','Статус','ОМСУ','Источник',
-      'Тип сообщения - 0 проблемы, 1 - предложения','Описание',
-      'Почта заявителя','Управляющая компания','Адрес','Улица','Дом'];
-
-    // ── Sheet 1: raw rows from API (exportMonth) ──
     const apiUrl = document.getElementById('apiUrl').value.trim();
-    const rowsResp = await fetch(apiUrl, {
+
+    // Step 1: get list of months
+    const initResp = await fetch(apiUrl, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         start: d.fromStr, end: d.toStr,
@@ -406,101 +401,81 @@ async function exportExcel() {
         exportRaw: true
       })
     });
-    if (!rowsResp.ok) throw new Error('Ошибка загрузки строк');
-    const rowsInit = await rowsResp.json();
+    if (!initResp.ok) throw new Error('Ошибка API: ' + initResp.status);
+    const init = await initResp.json();
+    if (init.mode !== 'chunked-csv') throw new Error('Неожиданный ответ сервера');
 
-    let rawRows = [];
-    if (rowsInit.mode === 'chunked-csv') {
-      for (const month of rowsInit.months) {
-        const mr = await fetch(apiUrl, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
-            start: d.fromStr, end: d.toStr,
-            compStart: d.fromStr, compEnd: d.toStr,
-            omsuFilter:[], sourceFilter:[], subFilter:[], sgFilter:[],
-            exportMonth: month
-          })
-        });
-        if (!mr.ok) continue;
-        const mc = await mr.json();
-        rawRows = rawRows.concat(mc.rows || []);
-      }
+    // Step 2: collect CSV lines month by month
+    const { months, omsuFilter, sourceFilter, subFilter, sgFilter } = init;
+    let chunk0cols = null;
+    const csvLines = [];
+
+    for (let i = 0; i < months.length; i++) {
+      btn.textContent = `⏳ ${months[i]} (${i+1}/${months.length})...`;
+      const mr = await fetch(apiUrl, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          start: d.fromStr, end: d.toStr,
+          compStart: d.fromStr, compEnd: d.toStr,
+          omsuFilter, sourceFilter, subFilter, sgFilter,
+          exportMonth: months[i]
+        })
+      });
+      if (!mr.ok) continue;
+      const mc = await mr.json();
+      if (!chunk0cols && mc.cols) chunk0cols = mc.cols;
+      for (const row of (mc.rows || [])) csvLines.push(row);
     }
 
-    // Build sheet 1: Детализация
-    const aoa1 = [COLS];
-    for (const rowStr of rawRows) {
+    if (!chunk0cols || !csvLines.length) {
+      alert('Нет данных за указанный период'); return;
+    }
+
+    // Step 3: parse CSV rows into arrays
+    function parseSemiCsvLine(line) {
       const fields = [];
-      let cur='', inQ=false;
-      for (let i=0; i<rowStr.length; i++) {
-        const c=rowStr[i];
-        if(inQ){if(c==='"'&&rowStr[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}
-        else if(c==='"')inQ=true;
-        else if(c===';'){fields.push(cur);cur='';}
-        else cur+=c;
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQ) {
+          if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (c === '"') inQ = false;
+          else cur += c;
+        } else if (c === '"') {
+          inQ = true;
+        } else if (c === ';') {
+          fields.push(cur); cur = '';
+        } else {
+          cur += c;
+        }
       }
       fields.push(cur);
-      // Match to COLS order (server sends all 16 export cols)
-      aoa1.push(fields);
+      return fields;
     }
-    const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Детализация');
 
-    // ── Sheet 2: Сводная по синт. группам ──
-    const SG_ORDER = ['Содержание территории','МКД','Контейнерная площадка'];
-    const getTotal = (data, name) => {
-      const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
-      const g = (data?.data||[]).find(x => norm(x.name)===norm(name) || norm(x.name).includes(norm(name)));
-      return g?.total || 0;
-    };
-    const getSubs = (data, name, n) => {
-      const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
-      const g = (data?.data||[]).find(x => norm(x.name)===norm(name) || norm(x.name).includes(norm(name)));
-      return (g?.subs||[]).slice(0,n);
-    };
-
-    const aoa2 = [];
-    aoa2.push(['Синт. группа / Подтема', `Основной\n${d.periodLabel}`,
-      `Пред. ${d.sameDay ? 'день' : 'период'}`, 'Δ пред.',
-      `АППГ\n${d.y25From.getFullYear()}`, 'Δ АППГ',
-      `Прош. неделя`, 'Δ нед.']);
-
-    const TOPS = {'Содержание территории':4, 'МКД':3, 'Контейнерная площадка':4};
-    for (const sgName of SG_ORDER) {
-      const cur  = getTotal(d.mainData, sgName);
-      const prev = getTotal(d.prevData, sgName);
-      const y25  = getTotal(d.y25Data,  sgName);
-      const wk   = getTotal(d.wkData,   sgName);
-      const dPrev = cur - prev, dY25 = cur - y25, dWk = cur - wk;
-      const pPrev = prev>0?Math.round(dPrev/prev*100):0;
-      const pY25  = y25>0?Math.round(dY25/y25*100):0;
-      const pWk   = wk>0?Math.round(dWk/wk*100):0;
-      aoa2.push([sgName, cur, prev, `${dPrev>=0?'+':''}${dPrev} (${dPrev>=0?'+':''}${pPrev}%)`,
-        y25, `${dY25>=0?'+':''}${dY25} (${dY25>=0?'+':''}${pY25}%)`,
-        wk, `${dWk>=0?'+':''}${dWk} (${dWk>=0?'+':''}${pWk}%)`]);
-
-      const subs = getSubs(d.mainData, sgName, TOPS[sgName]||4);
-      const prevSubs={}, y25Subs={}, wkSubs={};
-      (d.prevData?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>prevSubs[s.name]=s.count);
-      (d.y25Data?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>y25Subs[s.name]=s.count);
-      (d.wkData?.data||[]).find(x=>x.name?.includes(sgName))?.subs?.forEach(s=>wkSubs[s.name]=s.count);
-
-      subs.forEach(s => {
-        const sc=s.count||0, sp=prevSubs[s.name]||0, sy=y25Subs[s.name]||0, sw=wkSubs[s.name]||0;
-        const dp=sc-sp, dy=sc-sy, dw=sc-sw;
-        const pp=sp>0?Math.round(dp/sp*100):0, py=sy>0?Math.round(dy/sy*100):0, pw=sw>0?Math.round(dw/sw*100):0;
-        aoa2.push([`  — ${s.name}`, sc, sp, `${dp>=0?'+':''}${dp} (${dp>=0?'+':''}${pp}%)`,
-          sy, `${dy>=0?'+':''}${dy} (${dy>=0?'+':''}${py}%)`,
-          sw, `${dw>=0?'+':''}${dw} (${dw>=0?'+':''}${pw}%)`]);
-      });
-      aoa2.push([]); // blank row between groups
+    // Build aoa: header + data rows, columns matched by position
+    const aoa = [chunk0cols];
+    for (const line of csvLines) {
+      aoa.push(parseSemiCsvLine(line));
     }
-    const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
-    // Column widths
-    ws2['!cols'] = [{wch:45},{wch:12},{wch:12},{wch:18},{wch:12},{wch:18},{wch:12},{wch:18}];
-    XLSX.utils.book_append_sheet(wb, ws2, 'Сводная');
 
-    const fname = `СМС_${d.fromStr}${d.sameDay?'':('_'+d.toStr)}.xlsx`;
+    // Step 4: create xlsx with one sheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Set column widths based on header names
+    ws['!cols'] = chunk0cols.map(h => {
+      if (h === 'Описание') return { wch: 60 };
+      if (h === 'Факт' || h === 'Подтема') return { wch: 45 };
+      if (h === 'Адрес') return { wch: 50 };
+      if (h === 'ОМСУ' || h === 'Статус' || h === 'Источник') return { wch: 18 };
+      if (h === 'Дата (первого взятия в работу)') return { wch: 16 };
+      return { wch: 14 };
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Детализация');
+
+    const fname = `Детализация_${d.fromStr}${d.sameDay ? '' : ('_' + d.toStr)}.xlsx`;
     XLSX.writeFile(wb, fname);
 
   } catch(err) {
