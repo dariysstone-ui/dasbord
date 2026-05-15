@@ -216,6 +216,17 @@
         </div>
         <div class="srd" id="srcDrop"></div>
       </div>
+      <div class="srf" id="sgFilter">
+        <label>Фильтр по синт. группе</label>
+        <div class="srs" onclick="toggleSG(event)">
+          <span id="sgP">Все группы</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="sgClearBtn" onclick="clearSG(event)" style="display:none;background:rgba(244,63,94,.2);color:#f43f5e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">✕</span>
+            <span style="opacity:.4;font-size:10px">▼</span>
+          </span>
+        </div>
+        <div class="srd" id="sgDrop"></div>
+      </div>
       <div class="srf" id="subFilter">
         <label>Фильтр по подтеме</label>
         <div class="srs" onclick="toggleSub(event)">
@@ -290,13 +301,56 @@ window.clearOmsu=function(e){
   document.querySelectorAll('.omd input[type=checkbox]').forEach(c=>c.checked=false);
   updO();
 };
+function getActiveSubs(){
+  if(selSG.size===0) return SUB_LIST_ALL;
+  const subs=new Set();
+  selSG.forEach(sg=>{(SUB_BY_SG[sg]||[]).forEach(s=>subs.add(s));});
+  return [...subs].sort();
+}
 function initSub(){
+  rebuildSubDrop();
+}
+function rebuildSubDrop(){
+  const activeSubs=getActiveSubs();
+  // Clear any selected subs not in new list
+  [...selSub].forEach(s=>{if(!activeSubs.includes(s))selSub.delete(s);});
   $('subDrop').innerHTML='<input class="dd-search" placeholder="🔍 Поиск подтемы..." oninput="filterDrop(this,\'subDrop\')" onclick="event.stopPropagation()">'
-    +SUB_LIST.map(s=>{
+    +activeSubs.map(s=>{
       const id=`sub-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;
-      return`<div class="omo" onclick="togSub('${s.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
+      const checked=selSub.has(s)?'checked':'';
+      return`<div class="omo" onclick="togSub('${s.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}" ${checked}><label for="${id}">${s}</label></div>`;
+    }).join('');
+  updSub();
+}
+function initSG(){
+  $('sgDrop').innerHTML='<input class="dd-search" placeholder="🔍 Поиск группы..." oninput="filterDrop(this,\'sgDrop\')" onclick="event.stopPropagation()">'
+    +SG_LIST.map(s=>{
+      const id=`sg-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;
+      return`<div class="omo" onclick="togSG('${s.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
     }).join('');
 }
+function toggleSG(e){e.stopPropagation();$('sgDrop').classList.toggle('show');}
+function togSG(s,e){
+  e.stopPropagation();
+  const id=`sg-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;
+  const cb=$(id);
+  if(cb){if(cb.checked)selSG.add(s);else selSG.delete(s);}
+  else{if(selSG.has(s))selSG.delete(s);else selSG.add(s);const cb2=$(id);if(cb2)cb2.checked=selSG.has(s);}
+  updSG();
+  rebuildSubDrop(); // update subtopic list based on selected groups
+}
+function updSG(){
+  const n=selSG.size;
+  $('sgP').textContent=n===0?'Все группы':n===1?[...selSG][0]:`Выбрано: ${n}`;
+  const cb=$('sgClearBtn');if(cb)cb.style.display=n>0?'':'none';
+}
+window.clearSG=function(e){
+  e.stopPropagation();
+  selSG.clear();
+  document.querySelectorAll('#sgDrop input[type=checkbox]').forEach(c=>c.checked=false);
+  updSG();
+  rebuildSubDrop();
+};
 function toggleSub(e){e.stopPropagation();$('subDrop').classList.toggle('show');}
 function togSub(s,e){
   e.stopPropagation();
@@ -322,10 +376,14 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
   if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
   if(!e.target.closest('#subFilter'))$('subDrop').classList.remove('show');
+  if(!e.target.closest('#sgFilter'))$('sgDrop').classList.remove('show');
 });
 
 const SRC_LIST=['ПОС','Добродел','Инцидент','ЕДС','МСЭД','Почта губернатора','ОНФ','Мы рядом','ППМО'];
-const SUB_LIST=["Вывоз мусора", "Дезинфекция/дератизация", "Навалы на КП", "Нормативное состояние КП", "Плата/договора РО", "Содержание КП (уборка)", "Балконы, лоджии, козырьки и входная группа", "Вандальные надписи и реклама", "Водоснабжение/водоотведение", "Вопросы по деятельности Минчистоты", "Газовое оборудование", "Деятельность УК\\Кооперативов", "Доступная среда", "Клиентские офисы (ЕИРЦ)", "Кровля", "Лифты", "Мобильное приложение (МП) ЕИРЦ", "Мусор в МКД", "Освещение МКД", "Платежные документы (ЕИРЦ)", "Платежные документы (УК/Кооперативы)", "Подвал", "Пожарная безопасность", "Приборы учёта в МКД", "Ремонт подъездов", "Текущий ремонт: Внешнее содержание МКД", "Текущий ремонт: Внутреннее содержание МКД", "Фонд капитального ремонта", "Целевое назначение помещений", "Чердак", "Электроснабжение в МКД", "Автобусная остановка", "Дорожный знак, разметка", "Зеркало, камера, \"лежачий полицейский\"", "Листва", "Люки, ливневая канализация, подтопления", "Мусор на дорогах", "Ограждение на дороге", "Пешеходный переход", "Ремонт покрытия дороги/моста", "Ремонт тротуаров/велодорожек/пешеходных переходов", "Содержание зеленых насаждений", "Содержание тротуаров/велодорожек/пешеходных переходов", "Аварийные объекты/элементы", "Благоустройство дворов", "Мусор", "Ремонт тротуаров, проездов, пешеходных дорожек", "Текущее содержание ДИП", "Текущее содержание элементов и объектов благоустройства"];
+const SUB_BY_SG={"Контейнерная площадка":["Вывоз мусора","Навалы на КП","Нормативное состояние КП","Плата/договора РО","Содержание КП (уборка)"],"МКД":["Дезинфекция/дератизация","Балконы, лоджии, козырьки и входная группа","Вандальные надписи и реклама","Водоснабжение/водоотведение","Вопросы по деятельности Минчистоты","Газовое оборудование","Деятельность УК\\Кооперативов","Клиентские офисы (ЕИРЦ)","Кровля","Лифты","Мобильное приложение (МП) ЕИРЦ","Мусор в МКД","Освещение МКД","Платежные документы (ЕИРЦ)","Платежные документы (УК/Кооперативы)","Подвал","Пожарная безопасность","Приборы учёта в МКД","Ремонт подъездов","Текущий ремонт: Внешнее содержание МКД","Текущий ремонт: Внутреннее содержание МКД","Фонд капитального ремонта","Целевое назначение помещений","Чердак","Электроснабжение в МКД"],"Содержание территории":["Доступная среда","Аварийные объекты/элементы","Благоустройство дворов","Мусор","Ремонт тротуаров, проездов, пешеходных дорожек","Текущее содержание ДИП","Текущее содержание элементов и объектов благоустройства"],"Содержание муниципальных дорог":["Автобусная остановка","Дорожный знак, разметка","Зеркало, камера, \"лежачий полицейский\"","Листва","Люки, ливневая канализация, подтопления","Мусор на дорогах","Ограждение на дороге","Пешеходный переход","Ремонт покрытия дороги/моста","Ремонт тротуаров/велодорожек/пешеходных переходов","Содержание зеленых насаждений","Содержание тротуаров/велодорожек/пешеходных переходов"]};
+const SG_LIST=["Контейнерная площадка","МКД","Содержание территории","Содержание муниципальных дорог"];
+const SUB_LIST_ALL=[...new Set(Object.values(SUB_BY_SG).flat())].sort();
+let selSG=new Set();
 let selSub=new Set();
 
 function filterDrop(inp,dropId){
@@ -645,7 +703,7 @@ function saveS(){
     sessionStorage.setItem('dash_online', JSON.stringify({
       s:$('startDate').value, e:$('endDate').value,
       cs:$('compStartDate').value, ce:$('compEndDate').value,
-      omsu:[...selOmsu], src:[...selSrc], sub:[...selSub]
+      omsu:[...selOmsu], src:[...selSrc], sub:[...selSub], sg:[...selSG]
     }));
   }catch(_){}
 }
@@ -666,6 +724,12 @@ function loadS(){
       selSrc=new Set(c.src);
       c.src.forEach(s=>{const cb=$(`src-${s.replace(/\s+/g,'-')}`);if(cb)cb.checked=true;});
       updSrc();
+    }
+    if(c.sg?.length){
+      selSG=new Set(c.sg);
+      c.sg.forEach(s=>{const id=`sg-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;const cb=$(id);if(cb)cb.checked=true;});
+      updSG();
+      rebuildSubDrop();
     }
     if(c.sub?.length){
       selSub=new Set(c.sub);
@@ -695,7 +759,7 @@ $('genBtn').onclick=async()=>{
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu], sourceFilter:[...selSrc], subFilter:[...selSub]})
+      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu], sourceFilter:[...selSrc], subFilter:[...selSub], sgFilter:[...selSG]})
     });
 
     prog(65,'Получение ответа...');
@@ -712,7 +776,7 @@ $('genBtn').onclick=async()=>{
     await delay(0);
 
     curData=json.data;
-    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu], src:[...selSrc], sub:[...selSub]};
+    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu], src:[...selSrc], sub:[...selSub], sg:[...selSG]};
     lazyDy=json.daily||{};
     lazyDyComp=json.dailyComp||{};
 
@@ -793,7 +857,7 @@ $('expCsv').onclick=async()=>{
       body:JSON.stringify({
         start:curPer.start, end:curPer.end,
         compStart:curPer.compStart, compEnd:curPer.compEnd,
-        omsuFilter:curPer.omsu||[], sourceFilter:curPer.src||[], subFilter:curPer.sub||[],
+        omsuFilter:curPer.omsu||[], sourceFilter:curPer.src||[], subFilter:curPer.sub||[], sgFilter:curPer.sg||[],
         exportRaw:true
       })
     });
@@ -802,7 +866,7 @@ $('expCsv').onclick=async()=>{
     if(init.mode!=='chunked-csv') throw new Error('Неожиданный ответ сервера');
 
     // Step 2: fetch each month as a CSV chunk from server
-    const {months,start,end,omsuFilter,sourceFilter,subFilter}=init;
+    const {months,start,end,omsuFilter,sourceFilter,subFilter,sgFilter}=init;
     let csvLines=null;
     let total=0;
 
@@ -816,7 +880,7 @@ $('expCsv').onclick=async()=>{
         body:JSON.stringify({
           start, end,
           compStart:curPer.compStart, compEnd:curPer.compEnd,
-          omsuFilter, sourceFilter, subFilter,
+          omsuFilter, sourceFilter, subFilter, sgFilter,
           exportMonth:month
         })
       });
@@ -960,6 +1024,7 @@ const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашбор
 // ═══════════════════════════════════
 initOmsu();
 initSrc();
+initSG();
 initSub();
 loadS();
 </script>
