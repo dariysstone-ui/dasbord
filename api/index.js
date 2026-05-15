@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { start, end, compStart, compEnd, omsuFilter = [], sourceFilter = [], exportRaw = false } = req.body;
+    const { start, end, compStart, compEnd, omsuFilter = [], sourceFilter = [], subFilter = [], exportRaw = false } = req.body;
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
@@ -136,13 +136,13 @@ export default async function handler(req, res) {
     }
 
     // Build aggregates for main and comparison periods
-    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter);
-    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter, sourceFilter);
-    const daily    = buildDaily(allDays, start, end, omsuFilter, sourceFilter);
+    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter, subFilter);
+    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter);
+    const daily    = buildDaily(allDays, start, end, omsuFilter, sourceFilter, subFilter);
 
     const data = processDashboardData(mainAgg.groups, compAgg.groups);
 
-    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter, sourceFilter);
+    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter);
 
     return res.status(200).json({
       data,
@@ -204,7 +204,7 @@ function mergeGroup(dst, src) {
 }
 
 // ─── Aggregate days in a date range into group totals ───
-function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
+function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
   const groups = {};
   let total = 0;
 
@@ -217,14 +217,27 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = []) {
         const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
         if (srcTotal === 0) continue;
       }
+      // Sub filter: check if any selected subtopic exists in this group/day
+      if (subFilter.length > 0) {
+        const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+        if (subTotal === 0) continue;
+      }
 
       if (!groups[sg]) groups[sg] = { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{} };
       const dst = groups[sg];
 
-      if (omsuFilter.length === 0 && sourceFilter.length === 0) {
+      if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length === 0) {
         // No filters — merge whole group
         addToGroup(dst, g);
         total += g.total || 0;
+      } else if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length > 0) {
+        // Sub filter only — sum selected subtopics
+        const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+        if (subTotal > 0) {
+          const ratio = (g.total || 1) > 0 ? subTotal / g.total : 0;
+          addToGroupScaled(dst, g, ratio);
+          total += subTotal;
+        }
       } else if (omsuFilter.length === 0 && sourceFilter.length > 0) {
         // Source filter only — scale group by source ratio
         const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
@@ -365,19 +378,21 @@ function addToGroupScaled(dst, g, ratio) {
 }
 
 // ─── Daily counts for sparkline ───
-function buildDaily(allDays, start, end, omsuFilter, sourceFilter = []) {
+function buildDaily(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
   const daily = {};
   for (const [date, groups] of Object.entries(allDays)) {
     if (date < start || date > end) continue;
     daily[date] = {};
     for (const [sg, g] of Object.entries(groups)) {
       let n = 0;
-      if (omsuFilter.length === 0 && sourceFilter.length === 0) {
+      if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length === 0) {
         n = g.total || 0;
       } else if (omsuFilter.length > 0) {
         for (const omsu of omsuFilter) n += g.omsu?.[omsu]?.c || 0;
       } else if (sourceFilter.length > 0) {
         for (const src of sourceFilter) n += g.sources?.[src] || 0;
+      } else if (subFilter.length > 0) {
+        for (const sub of subFilter) n += g.subs?.[sub]?.count || 0;
       }
       if (n > 0) daily[date][sg] = (daily[date][sg] || 0) + n;
     }
@@ -504,6 +519,7 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
           if (!date || date < start || date > end) continue;
           if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
           if (sourceFilter.length > 0 && !sourceFilter.includes((row['Источник'] || '').trim())) continue;
+          if (subFilter.length > 0 && !subFilter.includes((row['Подтема'] || '').trim())) continue;
           res.write(cols.map(c => escCsv(row[c])).join(';') + '\r\n');
           count++;
         } catch (_) {}
@@ -571,6 +587,7 @@ async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter 
           if (!date || date < start || date > end) continue;
           if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
           if (sourceFilter.length > 0 && !sourceFilter.includes((row['Источник'] || '').trim())) continue;
+          if (subFilter.length > 0 && !subFilter.includes((row['Подтема'] || '').trim())) continue;
           results.push(row);
         } catch (_) {}
       }
