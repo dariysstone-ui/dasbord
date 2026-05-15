@@ -212,12 +212,31 @@ function findGroup(data,name){
          data.find(d=>norm(d.name).includes(norm(name))||norm(name).includes(norm(d.name)));
 }
 
-function getTopSubsWithOmsu(group,topN){
-  if(!group)return[];
-  return(group.subs||[]).slice(0,topN).map(s=>({
-    name:s.name, count:s.count||0,
-    topOmsu:(group.omsus||[]).filter(o=>o.mainSub===s.name).sort((a,b)=>b.count-a.count).slice(0,3).map(o=>`${o.name} — ${formatNum(o.count)}`)
-  }));
+function getTopSubsWithOmsu(group, topN, prevGroup, y25Group, wkGroup){
+  if(!group) return [];
+  const prevSubs = {};
+  (prevGroup?.subs||[]).forEach(s => prevSubs[s.name] = s.count||0);
+  const y25Subs = {};
+  (y25Group?.subs||[]).forEach(s => y25Subs[s.name] = s.count||0);
+  const wkSubs = {};
+  (wkGroup?.subs||[]).forEach(s => wkSubs[s.name] = s.count||0);
+
+  return (group.subs||[]).slice(0, topN).map(s => {
+    // For OMSU: show OMSUs where this subtopic is their main subtopic, use mainSubCnt
+    const omsuForSub = (group.omsus||[])
+      .filter(o => o.mainSub === s.name)
+      .sort((a,b) => b.mainSubCnt - a.mainSubCnt)
+      .slice(0, 3)
+      .map(o => `${o.name} — ${formatNum(o.mainSubCnt)}`);
+    return {
+      name: s.name,
+      count: s.count||0,
+      prev: prevSubs[s.name] || 0,
+      y25: y25Subs[s.name] || 0,
+      wk: wkSubs[s.name] || 0,
+      topOmsu: omsuForSub
+    };
+  });
 }
 
 async function generateSms(){
@@ -289,11 +308,17 @@ async function generateSms(){
       msg.push(`   ${fmtDyn(ytd,ytd25)} к АППГ`);
       msg.push('');
 
-      const topSubs=getTopSubsWithOmsu(mainG,blockDef.topN);
+      const topSubs=getTopSubsWithOmsu(mainG, blockDef.topN, prevG, y25G, wkG);
       if(topSubs.length){
         msg.push(`   🔹 ТОП-${blockDef.topN} подтем за период:`);
         topSubs.forEach((s,si)=>{
+          const dynPrev = s.prev > 0 || s.count !== s.prev ? fmtDyn(s.count, s.prev) : '';
+          const dynY25  = s.y25  > 0 || s.count !== s.y25  ? fmtDyn(s.count, s.y25)  : '';
+          const dynWk   = s.wk   > 0 || s.count !== s.wk   ? fmtDyn(s.count, s.wk)   : '';
           msg.push(`   ${si+1}. ${s.name}: ${formatNum(s.count)}`);
+          if(dynPrev) msg.push(`      к пред: ${dynPrev}`);
+          if(dynY25)  msg.push(`      к АППГ: ${dynY25}`);
+          if(dynWk)   msg.push(`      к пр.нед: ${dynWk}`);
           if(s.topOmsu.length) msg.push(`      🔸 ${s.topOmsu.join(', ')}`);
         });
       }
