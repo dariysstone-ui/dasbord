@@ -3,11 +3,13 @@
   "builds": [
     { "src": "index.html", "use": "@vercel/static" },
     { "src": "report.html", "use": "@vercel/static" },
+    { "src": "sms.html", "use": "@vercel/static" },
     { "src": "api/index.js", "use": "@vercel/node" }
   ],
   "routes": [
     { "src": "/api", "dest": "/api/index.js" },
     { "src": "/report", "dest": "/report.html" },
+    { "src": "/sms", "dest": "/sms.html" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
