@@ -71,7 +71,7 @@ export default async function handler(req, res) {
         months.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
         cur.setMonth(cur.getMonth() + 1);
       }
-      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, yearsNeeded: [...yearsNeeded] });
+      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, subFilter, yearsNeeded: [...yearsNeeded] });
     }
 
     // ── CSV chunk export: one month at a time ──
@@ -249,12 +249,15 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
               dst.facts[f] = (dst.facts[f]||0) + n;
           }
           dst.total += subTotal;
-          // Scale omsu, mails, addrs proportionally
+          // OMSU: count exact rows per OMSU that have matching subtopics
           for (const [k,v] of Object.entries(g.omsu||{})) {
+            // sum only the matching sub counts within this OMSU
+            const omsuSubCount = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
+            if (omsuSubCount === 0) continue;
             if (!dst.omsu[k]) dst.omsu[k] = { c:0, subs:{} };
-            dst.omsu[k].c += Math.round(v.c * ratio);
-            for (const [s,n] of Object.entries(v.subs||{}))
-              dst.omsu[k].subs[s] = (dst.omsu[k].subs[s]||0) + Math.round(n * ratio);
+            dst.omsu[k].c += omsuSubCount;
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.omsu[k].subs[sub] = (dst.omsu[k].subs[sub]||0) + v.subs[sub];
           }
           for (const [k,v] of Object.entries(g.mails||{})) {
             // Only include mail if they have submissions with matching subtopics
