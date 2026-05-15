@@ -183,11 +183,12 @@ function mergeGroup(dst, src) {
   }
   // mails
   for (const [k, v] of Object.entries(src.mails || {})) {
-    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [] };
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {} };
     dst.mails[k].c += v.c || 0;
-    for (const [f, n] of Object.entries(v.facts || {})) {
+    for (const [f, n] of Object.entries(v.facts || {}))
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + n;
-    }
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.mails[k].subs[s] = (dst.mails[k].subs[s] || 0) + n;
     const existing = new Set(dst.mails[k].omsus);
     for (const o of (v.omsus || [])) existing.add(o);
     dst.mails[k].omsus = [...existing];
@@ -256,21 +257,32 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
               dst.omsu[k].subs[s] = (dst.omsu[k].subs[s]||0) + Math.round(n * ratio);
           }
           for (const [k,v] of Object.entries(g.mails||{})) {
-            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[] };
-            dst.mails[k].c += Math.round(v.c * ratio);
+            // Only include mail if they have submissions with matching subtopics
+            const mailSubCount = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
+            if (mailSubCount === 0) continue;
+            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[], subs:{} };
+            dst.mails[k].c += mailSubCount;
+            // Scale facts proportionally
+            const mailRatio = v.c > 0 ? mailSubCount / v.c : 0;
             for (const [f,n] of Object.entries(v.facts||{}))
-              dst.mails[k].facts[f] = (dst.mails[k].facts[f]||0) + Math.round(n * ratio);
+              dst.mails[k].facts[f] = (dst.mails[k].facts[f]||0) + Math.round(n * mailRatio);
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.mails[k].subs[sub] = (dst.mails[k].subs[sub]||0) + (v.subs[sub]||0);
             const ex = new Set(dst.mails[k].omsus);
             for (const o of (v.omsus||[])) ex.add(o);
             dst.mails[k].omsus = [...ex];
           }
           for (const [k,v] of Object.entries(g.addrs||{})) {
+            // Only include addr if it has submissions with matching subtopics
+            const addrSubCount = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
+            if (addrSubCount === 0) continue;
             if (!dst.addrs[k]) dst.addrs[k] = { c:0, subs:{}, omsus:{} };
-            dst.addrs[k].c += Math.round(v.c * ratio);
-            for (const [s,n] of Object.entries(v.subs||{}))
-              dst.addrs[k].subs[s] = (dst.addrs[k].subs[s]||0) + Math.round(n * ratio);
+            dst.addrs[k].c += addrSubCount;
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.addrs[k].subs[sub] = (dst.addrs[k].subs[sub]||0) + (v.subs[sub]||0);
+            const addrRatio = v.c > 0 ? addrSubCount / v.c : 0;
             for (const [o,n] of Object.entries(v.omsus||{}))
-              dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o]||0) + Math.round(n * ratio);
+              dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o]||0) + Math.round(n * addrRatio);
           }
           total += subTotal;
         }
@@ -373,11 +385,13 @@ function addToGroup(dst, g) {
     dst.facts[k] = (dst.facts[k] || 0) + n;
   }
   for (const [k, v] of Object.entries(g.mails || {})) {
-    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [] };
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {} };
     dst.mails[k].c += v.c || 0;
     for (const [f, n] of Object.entries(v.facts || {})) {
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + n;
     }
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.mails[k].subs[s] = (dst.mails[k].subs[s] || 0) + n;
     const ex = new Set(dst.mails[k].omsus);
     for (const o of (v.omsus || [])) ex.add(o);
     dst.mails[k].omsus = [...ex];
