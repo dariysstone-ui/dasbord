@@ -793,7 +793,7 @@ $('expCsv').onclick=async()=>{
       body:JSON.stringify({
         start:curPer.start, end:curPer.end,
         compStart:curPer.compStart, compEnd:curPer.compEnd,
-        omsuFilter:curPer.omsu||[], sourceFilter:curPer.src||[],
+        omsuFilter:curPer.omsu||[], sourceFilter:curPer.src||[], subFilter:curPer.sub||[],
         exportRaw:true
       })
     });
@@ -802,7 +802,7 @@ $('expCsv').onclick=async()=>{
     if(init.mode!=='chunked-csv') throw new Error('Неожиданный ответ сервера');
 
     // Step 2: fetch each month as a CSV chunk from server
-    const {months,start,end,omsuFilter,sourceFilter}=init;
+    const {months,start,end,omsuFilter,sourceFilter,subFilter}=init;
     let csvLines=null;
     let total=0;
 
@@ -816,7 +816,7 @@ $('expCsv').onclick=async()=>{
         body:JSON.stringify({
           start, end,
           compStart:curPer.compStart, compEnd:curPer.compEnd,
-          omsuFilter, sourceFilter,
+          omsuFilter, sourceFilter, subFilter,
           exportMonth:month
         })
       });
