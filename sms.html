@@ -1,1 +1,347 @@
-PLACEHOLDER
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генератор СМС</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4ef; --surface: #ffffff; --surface2: #f0efe9;
+    --border: rgba(0,0,0,0.12); --border-strong: rgba(0,0,0,0.25);
+    --text: #1a1a18; --text-muted: #6b6b67; --text-hint: #9e9e99;
+    --accent: #2a5c8a; --accent-light: #e6f1fb; --accent-text: #0c447c;
+    --green: #3b6d11; --red: #a32d2d; --radius: 10px; --radius-sm: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --surface: #252522; --surface2: #2e2e2b;
+      --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.2);
+      --text: #f0efe9; --text-muted: #9e9e99; --text-hint: #6b6b67;
+      --accent: #4a90c8; --accent-light: #0c447c; --accent-text: #85b7eb;
+      --green: #c0dd97; --red: #f09595;
+    }
+  }
+  body { font-family: 'Georgia','Times New Roman',serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 860px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; }
+  header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+  header p { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--text-hint); letter-spacing: 0.08em; text-transform: uppercase; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.2rem 1.4rem; margin-bottom: 0.75rem; }
+  .card-label { font-family: 'Courier New', monospace; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.8rem; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  .form-row { display: flex; flex-direction: column; gap: 4px; }
+  .form-row label { font-family: 'Courier New', monospace; font-size: 0.72rem; color: var(--text-hint); }
+  input[type=date], input[type=url] { width: 100%; padding: 8px 10px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface2); color: var(--text); font-family: 'Courier New', monospace; font-size: 0.85rem; outline: none; transition: border-color 0.2s; }
+  input[type=date]:focus, input[type=url]:focus { border-color: var(--accent); }
+  .sort-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; margin-bottom: 0.75rem; }
+  .sort-label { font-family: 'Courier New', monospace; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.7rem; }
+  .sort-list { display: flex; flex-direction: column; gap: 6px; }
+  .sort-item { display: flex; align-items: center; gap: 10px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; cursor: grab; user-select: none; }
+  .sort-item.dragging { opacity: 0.35; }
+  .sort-item.drag-over-top { border-top: 2.5px solid var(--accent); }
+  .sort-item.drag-over-bottom { border-bottom: 2.5px solid var(--accent); }
+  .sort-handle { color: var(--text-hint); font-size: 15px; flex-shrink: 0; }
+  .sort-num { font-family: 'Courier New', monospace; font-size: 1rem; min-width: 28px; text-align: center; }
+  .sort-name { font-size: 0.9rem; flex: 1; }
+  .sort-arrows { display: flex; flex-direction: column; gap: 1px; margin-left: auto; }
+  .sort-arrows button { background: none; border: 1px solid var(--border); cursor: pointer; color: var(--text-muted); font-size: 10px; padding: 3px 6px; border-radius: 3px; }
+  .sort-arrows button:hover { color: var(--accent-text); background: var(--accent-light); border-color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text); font-family: 'Courier New', monospace; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+  .btn:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent-text); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { opacity: 0.88; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .status-bar { font-family: 'Courier New', monospace; font-size: 0.78rem; padding: 0.5rem 0; color: var(--text-hint); min-height: 1.5rem; }
+  .status-bar.ok { color: var(--green); } .status-bar.err { color: var(--red); }
+  .output-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: none; }
+  .output-card.visible { display: block; }
+  .output-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .output-header span { font-family: 'Courier New', monospace; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  #output-text { padding: 1.25rem 1.4rem; font-family: 'Courier New', monospace; font-size: 0.83rem; line-height: 1.75; white-space: pre-wrap; word-break: break-word; color: var(--text); min-height: 200px; max-height: 70vh; overflow-y: auto; }
+  .copied-toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--text); color: var(--surface); font-family: 'Courier New', monospace; font-size: 0.8rem; padding: 0.6rem 1.2rem; border-radius: var(--radius-sm); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; z-index: 100; }
+  .copied-toast.show { opacity: 1; transform: translateY(0); }
+  .hint { font-family: 'Courier New', monospace; font-size: 0.72rem; color: var(--text-hint); margin-top: 4px; }
+  .full-width { grid-column: 1 / -1; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Генератор СМС</h1>
+    <p>Данные загружаются с дашборда через API</p>
+  </header>
+
+  <div class="card">
+    <div class="card-label">⚙️ Настройки API</div>
+    <div class="form-row">
+      <label>URL API</label>
+      <input type="url" id="apiUrl" value="/api" placeholder="https://dasbord-ashen.vercel.app/api">
+      <div class="hint">Оставьте /api если открываете с Vercel</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">📅 Период отчёта</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Дата начала</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="form-row">
+        <label>Дата конца</label>
+        <input type="date" id="dateTo">
+      </div>
+      <div class="form-row full-width hint" id="periodHint"></div>
+    </div>
+  </div>
+
+  <div class="sort-section">
+    <div class="sort-label">Порядок блоков — перетащите или нажмите ▲▼</div>
+    <div class="sort-list" id="sort-list"></div>
+  </div>
+
+  <div class="status-bar" id="status"></div>
+
+  <div class="btn-row">
+    <button class="btn primary" id="generate-btn" onclick="generateSms()">▶ Сформировать СМС</button>
+    <button class="btn" id="copy-btn" onclick="copyReport()" style="display:none">⧉ Скопировать</button>
+    <button class="btn" id="clear-btn" onclick="clearAll()" style="display:none">✕ Очистить</button>
+  </div>
+
+  <div class="output-card" id="output-card">
+    <div class="output-header"><span>Текст СМС для Telegram</span></div>
+    <div id="output-text"></div>
+  </div>
+</div>
+<div class="copied-toast" id="toast">Скопировано!</div>
+
+<script>
+const BLOCKS_DEF = [
+  { id:'b1', name:'Содержание территории', topN:4 },
+  { id:'b2', name:'МКД', topN:3 },
+  { id:'b3', name:'КП', fullName:'Контейнерная площадка', topN:4 },
+];
+const EMOJIS = ['1️⃣','2️⃣','3️⃣'];
+let blockOrder = BLOCKS_DEF.map(b=>b.id);
+let dragSrc = null;
+
+function renderSortList() {
+  const list = document.getElementById('sort-list');
+  list.innerHTML = '';
+  blockOrder.forEach((id, idx) => {
+    const b = BLOCKS_DEF.find(x=>x.id===id);
+    const item = document.createElement('div');
+    item.className='sort-item'; item.draggable=true; item.dataset.id=id;
+    item.innerHTML =
+      '<span class="sort-handle">⠿</span>' +
+      '<span class="sort-num">'+EMOJIS[idx]+'</span>' +
+      '<span class="sort-name">'+b.name+'</span>' +
+      '<span style="font-family:monospace;font-size:0.72rem;color:var(--text-hint)">топ-'+b.topN+'</span>' +
+      '<span class="sort-arrows">' +
+        '<button onclick="moveBlock(\''+id+'\',-1)">▲</button>' +
+        '<button onclick="moveBlock(\''+id+'\',1)">▼</button>' +
+      '</span>';
+    item.addEventListener('dragstart', e=>{dragSrc=id;setTimeout(()=>item.classList.add('dragging'),0);e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend', ()=>{item.classList.remove('dragging');list.querySelectorAll('.sort-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bottom'));});
+    item.addEventListener('dragover', e=>{e.preventDefault();if(dragSrc===id)return;const rect=item.getBoundingClientRect();list.querySelectorAll('.sort-item').forEach(el=>el.classList.remove('drag-over-top','drag-over-bottom'));item.classList.add(e.clientY<rect.top+rect.height/2?'drag-over-top':'drag-over-bottom');});
+    item.addEventListener('dragleave',()=>item.classList.remove('drag-over-top','drag-over-bottom'));
+    item.addEventListener('drop',e=>{e.preventDefault();if(dragSrc===id)return;const rect=item.getBoundingClientRect();const before=e.clientY<rect.top+rect.height/2;const from=blockOrder.indexOf(dragSrc);blockOrder.splice(from,1);const to=blockOrder.indexOf(id);blockOrder.splice(before?to:to+1,0,dragSrc);renderSortList();});
+    list.appendChild(item);
+  });
+}
+function moveBlock(id,dir){const i=blockOrder.indexOf(id),ni=i+dir;if(ni<0||ni>=blockOrder.length)return;blockOrder.splice(i,1);blockOrder.splice(ni,0,id);renderSortList();}
+renderSortList();
+
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function fmtDate(d){return d.toISOString().slice(0,10);}
+function fmtRuShort(d){return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'});}
+function fmtRuLong(d){return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});}
+
+function getCompPeriods(fromStr,toStr){
+  const from=new Date(fromStr),to=new Date(toStr);
+  const days=Math.round((to-from)/86400000)+1;
+  const prevTo=addDays(from,-1),prevFrom=addDays(prevTo,-(days-1));
+  const y25From=new Date(from);y25From.setFullYear(2025);
+  const y25To=new Date(to);y25To.setFullYear(2025);
+  const wkFrom=addDays(from,-7),wkTo=addDays(to,-7);
+  return{days,prevFrom,prevTo,y25From,y25To,wkFrom,wkTo};
+}
+function getYtdPeriod(toStr){
+  const to=new Date(toStr);
+  const ytdFrom=new Date(to.getFullYear(),0,1);
+  const ytd25From=new Date(2025,0,1);
+  const ytd25To=new Date(toStr);ytd25To.setFullYear(2025);
+  return{ytdFrom,ytdTo:to,ytd25From,ytd25To};
+}
+
+function updateHint(){
+  const f=document.getElementById('dateFrom').value,t=document.getElementById('dateTo').value;
+  if(!f||!t){document.getElementById('periodHint').textContent='';return;}
+  const {days,prevFrom,prevTo,y25From,y25To,wkFrom,wkTo}=getCompPeriods(f,t);
+  document.getElementById('periodHint').textContent=
+    `${days} дн. | Пред: ${fmtRuShort(prevFrom)}–${fmtRuShort(prevTo)} | АППГ: ${fmtRuShort(y25From)}–${fmtRuShort(y25To)} | Пр.нед: ${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)}`;
+}
+document.getElementById('dateFrom').addEventListener('change',updateHint);
+document.getElementById('dateTo').addEventListener('change',updateHint);
+
+async function fetchPeriod(apiUrl,start,end,compStart,compEnd){
+  const r=await fetch(apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start,end,compStart,compEnd,omsuFilter:[],sourceFilter:[],subFilter:[],sgFilter:[]})});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+
+function formatNum(n){return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,'\u00a0');}
+function plural(n){n=Math.abs(Math.round(n||0));const l2=n%100,l1=n%10;if(l2>=11&&l2<=14)return'жалоб';if(l1===1)return'жалоба';if(l1>=2&&l1<=4)return'жалобы';return'жалоб';}
+function fmtDyn(cur,prev){
+  if(prev==null)return'';
+  const diff=Math.round(cur-prev);
+  const pct=prev>0?Math.round(diff/prev*100):(cur>0?100:0);
+  const sign=diff>=0?'+':'';
+  const arrow=diff>=0?'🔺':'🟢';
+  return `${arrow} ${sign}${formatNum(diff)} (${sign}${pct}%)`;
+}
+
+function findGroup(data,name){
+  if(!data)return null;
+  const norm=s=>s.toLowerCase().replace(/ё/g,'е').trim();
+  return data.find(d=>norm(d.name)===norm(name))||
+         data.find(d=>norm(d.name).includes(norm(name))||norm(name).includes(norm(d.name)));
+}
+
+function getTopSubsWithOmsu(group,topN){
+  if(!group)return[];
+  return(group.subs||[]).slice(0,topN).map(s=>({
+    name:s.name, count:s.count||0,
+    topOmsu:(group.omsus||[]).filter(o=>o.mainSub===s.name).sort((a,b)=>b.count-a.count).slice(0,3).map(o=>`${o.name} — ${formatNum(o.count)}`)
+  }));
+}
+
+async function generateSms(){
+  const apiUrl=document.getElementById('apiUrl').value.trim();
+  const fromStr=document.getElementById('dateFrom').value;
+  const toStr=document.getElementById('dateTo').value;
+  if(!fromStr||!toStr){setStatus('✗ Выберите даты периода','err');return;}
+  if(new Date(fromStr)>new Date(toStr)){setStatus('✗ Дата начала позже даты конца','err');return;}
+
+  const btn=document.getElementById('generate-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Загрузка…';
+  setStatus('Запросы к API…','');
+
+  try{
+    const{days,prevFrom,prevTo,y25From,y25To,wkFrom,wkTo}=getCompPeriods(fromStr,toStr);
+    const{ytdFrom,ytdTo,ytd25From,ytd25To}=getYtdPeriod(toStr);
+
+    const[mainData,prevData,y25Data,wkData,ytdData,ytd25Data]=await Promise.all([
+      fetchPeriod(apiUrl,fromStr,toStr,fmtDate(prevFrom),fmtDate(prevTo)),
+      fetchPeriod(apiUrl,fmtDate(prevFrom),fmtDate(prevTo),fromStr,toStr),
+      fetchPeriod(apiUrl,fmtDate(y25From),fmtDate(y25To),fromStr,toStr),
+      fetchPeriod(apiUrl,fmtDate(wkFrom),fmtDate(wkTo),fromStr,toStr),
+      fetchPeriod(apiUrl,fmtDate(ytdFrom),toStr,fmtDate(ytd25From),fmtDate(ytd25To)),
+      fetchPeriod(apiUrl,fmtDate(ytd25From),fmtDate(ytd25To),fmtDate(ytdFrom),toStr),
+    ]);
+
+    setStatus('Формирование СМС…','');
+
+    const mainTotal=mainData.data.reduce((s,g)=>s+(g.total||0),0);
+    const prevTotal=prevData.data.reduce((s,g)=>s+(g.total||0),0);
+    const y25Total=y25Data.data.reduce((s,g)=>s+(g.total||0),0);
+    const wkTotal=wkData.data.reduce((s,g)=>s+(g.total||0),0);
+    const ytdTotal=ytdData.data.reduce((s,g)=>s+(g.total||0),0);
+    const ytd25Total=ytd25Data.data.reduce((s,g)=>s+(g.total||0),0);
+
+    const fromRu=fmtRuLong(new Date(fromStr)),toRu=fmtRuLong(new Date(toStr));
+    const periodLabel=fromStr===toStr?fromRu:`${fromRu} – ${toRu}`;
+    const msg=[];
+
+    msg.push(`📋 Докладываю по жалобам за ${periodLabel}:`);
+    msg.push('');
+    msg.push(`🔘 ДВОР поступило ${formatNum(mainTotal)} ${plural(mainTotal)}`);
+    msg.push(`   ${fmtDyn(mainTotal,prevTotal)} к предыдущему периоду (${fmtRuShort(prevFrom)}–${fmtRuShort(prevTo)})`);
+    msg.push(`   ${fmtDyn(mainTotal,y25Total)} к АППГ (${fmtRuShort(y25From)}–${fmtRuShort(y25To)})`);
+    msg.push(`   ${fmtDyn(mainTotal,wkTotal)} к прошлой неделе (${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)})`);
+    msg.push('');
+    msg.push(`   📊 С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)}`);
+    msg.push(`   ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
+    msg.push('');
+
+    blockOrder.forEach((id,bi)=>{
+      const blockDef=BLOCKS_DEF.find(b=>b.id===id);
+      const groupName=blockDef.fullName||blockDef.name;
+      const mainG=findGroup(mainData.data,groupName);
+      const prevG=findGroup(prevData.data,groupName);
+      const y25G=findGroup(y25Data.data,groupName);
+      const wkG=findGroup(wkData.data,groupName);
+      const ytdG=findGroup(ytdData.data,groupName);
+      const ytd25G=findGroup(ytd25Data.data,groupName);
+      const cur=mainG?.total||0,prev=prevG?.total||0,y25=y25G?.total||0,wk=wkG?.total||0;
+      const ytd=ytdG?.total||0,ytd25=ytd25G?.total||0;
+
+      msg.push(`${EMOJIS[bi]} ${blockDef.name.toUpperCase()} — ${formatNum(cur)} ${plural(cur)}`);
+      msg.push(`   ${fmtDyn(cur,prev)} к предыдущему периоду`);
+      msg.push(`   ${fmtDyn(cur,y25)} к АППГ`);
+      msg.push(`   ${fmtDyn(cur,wk)} к прошлой неделе`);
+      msg.push('');
+      msg.push(`   📊 С начала года: ${formatNum(ytd)} ${plural(ytd)}`);
+      msg.push(`   ${fmtDyn(ytd,ytd25)} к АППГ`);
+      msg.push('');
+
+      const topSubs=getTopSubsWithOmsu(mainG,blockDef.topN);
+      if(topSubs.length){
+        msg.push(`   🔹 ТОП-${blockDef.topN} подтем за период:`);
+        topSubs.forEach((s,si)=>{
+          msg.push(`   ${si+1}. ${s.name}: ${formatNum(s.count)}`);
+          if(s.topOmsu.length) msg.push(`      🔸 ${s.topOmsu.join(', ')}`);
+        });
+      }
+      msg.push('');
+      if(bi<blockOrder.length-1) msg.push('');
+    });
+
+    msg.push('🔷 Выгрузку обращений прикладываем, информация по жалобам (рекомендуем смотреть через компьютер)');
+
+    document.getElementById('output-text').textContent=msg.join('\n');
+    document.getElementById('output-card').classList.add('visible');
+    document.getElementById('copy-btn').style.display='';
+    document.getElementById('clear-btn').style.display='';
+    setStatus('✓ СМС готова','ok');
+
+  }catch(err){
+    console.error(err);
+    setStatus('✗ Ошибка: '+err.message,'err');
+  }finally{
+    btn.disabled=false;btn.innerHTML='▶ Сформировать СМС';
+  }
+}
+
+function setStatus(msg,cls){const s=document.getElementById('status');s.textContent=msg;s.className='status-bar '+(cls||'');}
+function copyReport(){
+  const text=document.getElementById('output-text').textContent;
+  if(!text)return;
+  navigator.clipboard.writeText(text).then(showToast).catch(()=>{
+    const el=document.getElementById('output-text');
+    const rng=document.createRange();rng.selectNodeContents(el);
+    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(rng);
+    document.execCommand('copy');showToast();
+  });
+}
+function showToast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+function clearAll(){
+  document.getElementById('output-text').textContent='';
+  document.getElementById('output-card').classList.remove('visible');
+  document.getElementById('copy-btn').style.display='none';
+  document.getElementById('clear-btn').style.display='none';
+  document.getElementById('periodHint').textContent='';
+  setStatus('','');
+}
+
+const today=new Date().toISOString().slice(0,10);
+document.getElementById('dateFrom').value=today;
+document.getElementById('dateTo').value=today;
+updateHint();
+</script>
+</body>
+</html>
