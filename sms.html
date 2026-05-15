@@ -417,7 +417,8 @@ async function exportExcel() {
         body: JSON.stringify({
           start: d.fromStr, end: d.toStr,
           compStart: d.fromStr, compEnd: d.toStr,
-          omsuFilter, sourceFilter, subFilter, sgFilter,
+          omsuFilter, sourceFilter, subFilter,
+          sgFilter: ['Содержание территории','МКД','Контейнерная площадка'],
           exportMonth: months[i]
         })
       });
