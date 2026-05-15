@@ -161,6 +161,12 @@ function fmtDate(d){return d.toISOString().slice(0,10);}
 function fmtRuShort(d){return d.toLocaleDateString('ru-RU',{day:'numeric',month:'short'});}
 function fmtRuLong(d){return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});}
 
+const DAYS_RU = ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
+const DAYS_RU_FULL = ['воскресенье','понедельник','вторник','среду','четверг','пятницу','субботу'];
+
+function dayLabel(d) { return DAYS_RU[d.getDay()]; }
+function dayLabelFull(d) { return DAYS_RU_FULL[d.getDay()]; }
+
 function getCompPeriods(fromStr,toStr){
   const from=new Date(fromStr),to=new Date(toStr);
   const days=Math.round((to-from)/86400000)+1;
@@ -282,19 +288,35 @@ async function generateSms(){
     const ytdTotal=ytdData.data.reduce((s,g)=>s+(g.total||0),0);
     const ytd25Total=ytd25Data.data.reduce((s,g)=>s+(g.total||0),0);
 
-    const fromRu=fmtRuLong(new Date(fromStr)),toRu=fmtRuLong(new Date(toStr));
-    const periodLabel=fromStr===toStr?fromRu:`${fromRu} – ${toRu}`;
+    const sameDay = fromStr === toStr;
+    const fromDate = new Date(fromStr), toDate = new Date(toStr);
+    const fromRu = fmtRuLong(fromDate), toRu = fmtRuLong(toDate);
+    const periodLabel = sameDay ? fromRu : `${fromRu} – ${toRu}`;
+
+    // Days of week: dative case for "к [дню] прошлой недели"
+    const DAYS_DAT = ['воскресенью','понедельнику','вторнику','среде','четвергу','пятнице','субботе'];
+    const dayDat = DAYS_DAT[fromDate.getDay()];
+
+    // Labels for comparisons
+    const prevLabel = sameDay
+      ? 'предыдущему дню'
+      : `предыдущему периоду (${fmtRuShort(prevFrom)}–${fmtRuShort(prevTo)})`;
+    const wkLabel = sameDay
+      ? `${dayDat} прошлой недели`
+      : `аналогичному периоду прошлой недели (${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)})`;
+    const y25Year = y25From.getFullYear();
+    const y25Label = sameDay
+      ? `АППГ ${y25Year} (${fmtRuShort(y25From)})`
+      : `АППГ ${y25Year} (${fmtRuShort(y25From)}–${fmtRuShort(y25To)})`;
+
     const msg=[];
 
     msg.push(`📋 Докладываю по жалобам за ${periodLabel}:`);
     msg.push('');
     msg.push(`🔘 ДВОР поступило ${formatNum(mainTotal)} ${plural(mainTotal)}`);
-    msg.push(`   ${fmtDyn(mainTotal,prevTotal)} к предыдущему периоду (${fmtRuShort(prevFrom)}–${fmtRuShort(prevTo)})`);
-    msg.push(`   ${fmtDyn(mainTotal,y25Total)} к АППГ (${fmtRuShort(y25From)}–${fmtRuShort(y25To)})`);
-    msg.push(`   ${fmtDyn(mainTotal,wkTotal)} к прошлой неделе (${fmtRuShort(wkFrom)}–${fmtRuShort(wkTo)})`);
+    msg.push(`   ${fmtDyn(mainTotal,prevTotal)} к ${prevLabel} / ${fmtDyn(mainTotal,y25Total)} к ${y25Label} / ${fmtDyn(mainTotal,wkTotal)} к ${wkLabel}`);
     msg.push('');
-    msg.push(`   📊 С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)}`);
-    msg.push(`   ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
+    msg.push(`   📊 С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)} / ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
     msg.push('');
 
     blockOrder.forEach((id,bi)=>{
@@ -310,27 +332,24 @@ async function generateSms(){
       const ytd=ytdG?.total||0,ytd25=ytd25G?.total||0;
 
       msg.push(`${EMOJIS[bi]} ${blockDef.name.toUpperCase()} — ${formatNum(cur)} ${plural(cur)}`);
-      msg.push(`   ${fmtDyn(cur,prev)} к предыдущему периоду`);
-      msg.push(`   ${fmtDyn(cur,y25)} к АППГ`);
-      msg.push(`   ${fmtDyn(cur,wk)} к прошлой неделе`);
+      msg.push(`   ${fmtDyn(cur,prev)} к ${prevLabel} / ${fmtDyn(cur,y25)} к ${y25Label} / ${fmtDyn(cur,wk)} к ${wkLabel}`);
       msg.push('');
-      msg.push(`   📊 С начала года: ${formatNum(ytd)} ${plural(ytd)}`);
-      msg.push(`   ${fmtDyn(ytd,ytd25)} к АППГ`);
+      msg.push(`   📊 С начала года: ${formatNum(ytd)} ${plural(ytd)} / ${fmtDyn(ytd,ytd25)} к АППГ`);
       msg.push('');
 
       const topSubs=getTopSubsWithOmsu(mainG, blockDef.topN, prevG, y25G, wkG);
       if(topSubs.length){
         msg.push(`   🔹 ТОП-${blockDef.topN} подтем за период:`);
         topSubs.forEach((s,si)=>{
-          const dynPrev = s.prev > 0 || s.count !== s.prev ? fmtDyn(s.count, s.prev) : '';
-          const dynY25  = s.y25  > 0 || s.count !== s.y25  ? fmtDyn(s.count, s.y25)  : '';
-          const dynWk   = s.wk   > 0 || s.count !== s.wk   ? fmtDyn(s.count, s.wk)   : '';
+          const dynPrev = fmtDyn(s.count, s.prev);
+          const dynY25  = fmtDyn(s.count, s.y25);
+          const dynWk   = fmtDyn(s.count, s.wk);
           const dynParts = [];
-          if(dynPrev) dynParts.push(`пред: ${dynPrev}`);
-          if(dynY25)  dynParts.push(`АППГ: ${dynY25}`);
-          if(dynWk)   dynParts.push(`нед: ${dynWk}`);
+          if(dynPrev) dynParts.push(`${dynPrev} к ${prevLabel}`);
+          if(dynY25)  dynParts.push(`${dynY25} к ${y25Label}`);
+          if(dynWk)   dynParts.push(`${dynWk} к ${wkLabel}`);
           msg.push(`   ${si+1}. ${s.name}: ${formatNum(s.count)} / ${dynParts.join(' / ')}`);
-          if(s.topOmsu.length) msg.push(`      🔸 ${s.topOmsu.join(', ')}`);
+          s.topOmsu.forEach(o => msg.push(`      🔸 ${o}`));
         });
       }
       msg.push('');
