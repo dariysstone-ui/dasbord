@@ -271,10 +271,11 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
 // OMSU
 // ═══════════════════════════════════
 function initOmsu() {
-  $('omsDrop').innerHTML=OMSU_LIST.slice().sort().map(o=>{
-    const id=`o-${o.replace(/[\s']+/g,'-')}`;
-    return `<div class="omo" onclick="togO('${o.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${o}</label></div>`;
-  }).join('');
+  $('omsDrop').innerHTML='<input class="dd-search" placeholder="🔍 Поиск ОМСУ..." oninput="filterDrop(this,\'omsDrop\')" onclick="event.stopPropagation()">'
+    +OMSU_LIST.slice().sort().map(o=>{
+      const id=`o-${o.replace(/[\s']+/g,'-')}`;
+      return `<div class="omo" onclick="togO('${o.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${o}</label></div>`;
+    }).join('');
 }
 function toggleOmsu(e){e.stopPropagation();$('omsDrop').classList.toggle('show')}
 function togO(o,e){e.stopPropagation();const c=$(`o-${o.replace(/[\s']+/g,'-')}`);if(c.checked)selOmsu.add(o);else selOmsu.delete(o);updO()}
@@ -366,10 +367,7 @@ document.addEventListener('click',e=>{
 
 
 function initSrc(){
-  $('srcDrop').innerHTML=SRC_LIST.map(s=>{
-    const id=`src-${s.replace(/\s+/g,'-')}`;
-    return`<div class="omo" onclick="togSrc('${s}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
-  }).join('');
+  // search already added above
 }
 function toggleSrc(e){e.stopPropagation();$('srcDrop').classList.toggle('show');}
 function togSrc(s,e){
