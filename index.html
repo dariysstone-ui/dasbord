@@ -87,6 +87,12 @@
     @media(max-width:600px){.omo{padding:13px 14px}}
     @media(max-width:600px){.omo input{width:18px;height:18px}}
     @media(max-width:600px){.omo label{font-size:13px}}
+    .dd-search{width:100%;padding:8px 10px;border:none;border-bottom:1px solid var(--bl);background:var(--card);color:var(--t);font-size:12px;outline:none;position:sticky;top:0;z-index:2;box-sizing:border-box}
+    .dd-search::placeholder{color:var(--td)}
+    .omo.dd-hidden{display:none!important}
+    @media(max-width:600px){.omo{padding:13px 14px}}
+    @media(max-width:600px){.omo input{width:18px;height:18px}}
+    @media(max-width:600px){.omo label{font-size:13px}}
     .omo:hover{background:var(--card)}
     .omo input{accent-color:var(--ac);width:14px;height:14px}
     .omo label{margin:0;cursor:pointer;color:var(--t);font-size:12px;text-transform:none;letter-spacing:0;font-weight:400}
@@ -210,6 +216,17 @@
         </div>
         <div class="srd" id="srcDrop"></div>
       </div>
+      <div class="srf" id="subFilter">
+        <label>Фильтр по подтеме</label>
+        <div class="srs" onclick="toggleSub(event)">
+          <span id="subP">Все подтемы</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="subClearBtn" onclick="clearSub(event)" style="display:none;background:rgba(244,63,94,.2);color:#f43f5e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">✕</span>
+            <span style="opacity:.4;font-size:10px">▼</span>
+          </span>
+        </div>
+        <div class="srd" id="subDrop"></div>
+      </div>
       <div style="display:flex;align-items:flex-end;gap:8px">
         <button class="btn btn-p" id="genBtn" style="width:100%">🚀 Сформировать</button>
       </div>
@@ -272,14 +289,52 @@ window.clearOmsu=function(e){
   document.querySelectorAll('.omd input[type=checkbox]').forEach(c=>c.checked=false);
   updO();
 };
+function initSub(){
+  $('subDrop').innerHTML='<input class="dd-search" placeholder="🔍 Поиск подтемы..." oninput="filterDrop(this,\'subDrop\')" onclick="event.stopPropagation()">'
+    +SUB_LIST.map(s=>{
+      const id=`sub-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;
+      return`<div class="omo" onclick="togSub('${s.replace(/'/g,"\\'")}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
+    }).join('');
+}
+function toggleSub(e){e.stopPropagation();$('subDrop').classList.toggle('show');}
+function togSub(s,e){
+  e.stopPropagation();
+  const id=`sub-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;
+  const cb=$(id);
+  if(cb){if(cb.checked)selSub.add(s);else selSub.delete(s);}
+  else{if(selSub.has(s))selSub.delete(s);else selSub.add(s);const cb2=$(id);if(cb2)cb2.checked=selSub.has(s);}
+  updSub();
+}
+function updSub(){
+  const n=selSub.size;
+  $('subP').textContent=n===0?'Все подтемы':n===1?[...selSub][0]:`Выбрано: ${n}`;
+  const cb=$('subClearBtn');if(cb)cb.style.display=n>0?'':'none';
+}
+window.clearSub=function(e){
+  e.stopPropagation();
+  selSub.clear();
+  document.querySelectorAll('#subDrop input[type=checkbox]').forEach(c=>c.checked=false);
+  updSub();
+};
+
 document.addEventListener('click',e=>{
   if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
   if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
+  if(!e.target.closest('#subFilter'))$('subDrop').classList.remove('show');
 });
 
 const SRC_LIST=['ПОС','Добродел','Инцидент','ЕДС','МСЭД','Почта губернатора','ОНФ','Мы рядом','ППМО'];
+const SUB_LIST=["Вывоз мусора", "Дезинфекция/дератизация", "Навалы на КП", "Нормативное состояние КП", "Плата/договора РО", "Содержание КП (уборка)", "Балконы, лоджии, козырьки и входная группа", "Вандальные надписи и реклама", "Водоснабжение/водоотведение", "Вопросы по деятельности Минчистоты", "Газовое оборудование", "Деятельность УК\\Кооперативов", "Доступная среда", "Клиентские офисы (ЕИРЦ)", "Кровля", "Лифты", "Мобильное приложение (МП) ЕИРЦ", "Мусор в МКД", "Освещение МКД", "Платежные документы (ЕИРЦ)", "Платежные документы (УК/Кооперативы)", "Подвал", "Пожарная безопасность", "Приборы учёта в МКД", "Ремонт подъездов", "Текущий ремонт: Внешнее содержание МКД", "Текущий ремонт: Внутреннее содержание МКД", "Фонд капитального ремонта", "Целевое назначение помещений", "Чердак", "Электроснабжение в МКД", "Автобусная остановка", "Дорожный знак, разметка", "Зеркало, камера, \"лежачий полицейский\"", "Листва", "Люки, ливневая канализация, подтопления", "Мусор на дорогах", "Ограждение на дороге", "Пешеходный переход", "Ремонт покрытия дороги/моста", "Ремонт тротуаров/велодорожек/пешеходных переходов", "Содержание зеленых насаждений", "Содержание тротуаров/велодорожек/пешеходных переходов", "Аварийные объекты/элементы", "Благоустройство дворов", "Мусор", "Ремонт тротуаров, проездов, пешеходных дорожек", "Текущее содержание ДИП", "Текущее содержание элементов и объектов благоустройства"];
+let selSub=new Set();
+
+function filterDrop(inp,dropId){
+  const q=inp.value.toLowerCase().trim();
+  document.querySelectorAll(`#${dropId} .omo`).forEach(el=>{
+    el.classList.toggle('dd-hidden',q.length>0&&!el.textContent.toLowerCase().includes(q));
+  });
+}
 function initSrc(){
-  $('srcDrop').innerHTML=SRC_LIST.map(s=>{
+  $('srcDrop').innerHTML='<input class="dd-search" placeholder="🔍 Поиск источника..." oninput="filterDrop(this,\'srcDrop\')" onclick="event.stopPropagation()">'+SRC_LIST.map(s=>{
     const id=`src-${s.replace(/\s+/g,'-')}`;
     return`<div class="omo" onclick="togSrc('${s}',event)"><input type="checkbox" id="${id}"><label for="${id}">${s}</label></div>`;
   }).join('');
@@ -306,6 +361,7 @@ window.clearSrc=function(e){
 document.addEventListener('click',e=>{
   if(!e.target.closest('.omf'))$('omsDrop').classList.remove('show');
   if(!e.target.closest('.srf'))$('srcDrop').classList.remove('show');
+  if(!e.target.closest('#subFilter'))$('subDrop').classList.remove('show');
 });
 
 
@@ -620,7 +676,7 @@ function saveS(){
     sessionStorage.setItem('dash_online', JSON.stringify({
       s:$('startDate').value, e:$('endDate').value,
       cs:$('compStartDate').value, ce:$('compEndDate').value,
-      omsu:[...selOmsu], src:[...selSrc]
+      omsu:[...selOmsu], src:[...selSrc], sub:[...selSub]
     }));
   }catch(_){}
 }
@@ -641,6 +697,11 @@ function loadS(){
       selSrc=new Set(c.src);
       c.src.forEach(s=>{const cb=$(`src-${s.replace(/\s+/g,'-')}`);if(cb)cb.checked=true;});
       updSrc();
+    }
+    if(c.sub?.length){
+      selSub=new Set(c.sub);
+      c.sub.forEach(s=>{const id=`sub-${s.replace(/[\s\/'"()+:,.]/g,'-')}`;const cb=$(id);if(cb)cb.checked=true;});
+      updSub();
     }
   }catch(_){}
 }
@@ -665,7 +726,7 @@ $('genBtn').onclick=async()=>{
     const resp=await fetch('/api',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu], sourceFilter:[...selSrc]})
+      body:JSON.stringify({start:s, end:e, compStart:cs, compEnd:ce, omsuFilter:[...selOmsu], sourceFilter:[...selSrc], subFilter:[...selSub]})
     });
 
     prog(65,'Получение ответа...');
@@ -682,7 +743,7 @@ $('genBtn').onclick=async()=>{
     await delay(0);
 
     curData=json.data;
-    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu], src:[...selSrc]};
+    curPer={start:s, end:e, compStart:cs, compEnd:ce, omsu:[...selOmsu], src:[...selSrc], sub:[...selSub]};
     lazyDy=json.daily||{};
     lazyDyComp=json.dailyComp||{};
 
@@ -930,6 +991,7 @@ const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Дашбор
 // ═══════════════════════════════════
 initOmsu();
 initSrc();
+initSub();
 loadS();
 </script>
 </body>
