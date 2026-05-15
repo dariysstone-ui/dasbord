@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { start, end, compStart, compEnd, omsuFilter = [], sourceFilter = [], subFilter = [], exportRaw = false } = req.body;
+    const { start, end, compStart, compEnd, omsuFilter = [], sourceFilter = [], subFilter = [], sgFilter = [], exportRaw = false } = req.body;
     if (!start || !end || !compStart || !compEnd) {
       return res.status(400).json({ error: 'Заполните все 4 поля с датами' });
     }
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
         months.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
         cur.setMonth(cur.getMonth() + 1);
       }
-      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, subFilter, yearsNeeded: [...yearsNeeded] });
+      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, subFilter, sgFilter, yearsNeeded: [...yearsNeeded] });
     }
 
     // ── CSV chunk export: one month at a time ──
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ rows: [], cols: COLS, month: exportMonth });
       }
 
-      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter, subFilter);
+      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter, subFilter, sgFilter);
       const csvRows = rows.map(row => COLS.map(c => esc(row[c])).join(';'));
       return res.status(200).json({ rows: csvRows, cols: COLS, month: exportMonth, count: rows.length });
     }
@@ -136,13 +136,13 @@ export default async function handler(req, res) {
     }
 
     // Build aggregates for main and comparison periods
-    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter, subFilter);
-    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter);
-    const daily    = buildDaily(allDays, start, end, omsuFilter, sourceFilter, subFilter);
+    const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter, subFilter, sgFilter);
+    const compAgg  = buildPeriodAgg(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter, sgFilter);
+    const daily    = buildDaily(allDays, start, end, omsuFilter, sourceFilter, subFilter, sgFilter);
 
     const data = processDashboardData(mainAgg.groups, compAgg.groups);
 
-    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter);
+    const dailyComp = buildDaily(allDays, compStart, compEnd, omsuFilter, sourceFilter, subFilter, sgFilter);
 
     return res.status(200).json({
       data,
@@ -205,7 +205,7 @@ function mergeGroup(dst, src) {
 }
 
 // ─── Aggregate days in a date range into group totals ───
-function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
+function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = [], sgFilter = []) {
   const groups = {};
   let total = 0;
 
@@ -213,6 +213,9 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
     if (date < start || date > end) continue;
 
     for (const [sg, g] of Object.entries(dayGroups)) {
+      // SG filter: skip groups not in selected synth groups
+      if (sgFilter.length > 0 && !sgFilter.includes(sg)) continue;
+
       // Source filter: check if any rows from selected sources exist in this group/day
       if (sourceFilter.length > 0) {
         const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
@@ -446,12 +449,13 @@ function addToGroupScaled(dst, g, ratio) {
 }
 
 // ─── Daily counts for sparkline ───
-function buildDaily(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
+function buildDaily(allDays, start, end, omsuFilter, sourceFilter = [], subFilter = [], sgFilter = []) {
   const daily = {};
   for (const [date, groups] of Object.entries(allDays)) {
     if (date < start || date > end) continue;
     daily[date] = {};
     for (const [sg, g] of Object.entries(groups)) {
+      if (sgFilter.length > 0 && !sgFilter.includes(sg)) continue;
       let n = 0;
       if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length === 0) {
         n = g.total || 0;
@@ -631,7 +635,7 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
 
 // ─── Decompress gzip JSONL stream, filter rows by date/omsu, return array ───
 // Processes data line-by-line: never loads the entire file into RAM.
-async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
+async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = [], subFilter = [], sgFilter = []) {
   const { createGunzip } = await import('node:zlib');
   const { StringDecoder } = await import('node:string_decoder');
 
@@ -656,6 +660,7 @@ async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter 
           if (omsuFilter.length > 0 && !omsuFilter.includes((row['ОМСУ'] || '').trim())) continue;
           if (sourceFilter.length > 0 && !sourceFilter.includes((row['Источник'] || '').trim())) continue;
           if (subFilter.length > 0 && !subFilter.includes((row['Подтема'] || '').trim())) continue;
+          if (sgFilter.length > 0 && !sgFilter.includes((row['Синт. группа'] || '').trim())) continue;
           results.push(row);
         } catch (_) {}
       }
