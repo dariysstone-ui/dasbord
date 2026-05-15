@@ -115,7 +115,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ rows: [], cols: COLS, month: exportMonth });
       }
 
-      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter);
+      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter, subFilter);
       const csvRows = rows.map(row => COLS.map(c => esc(row[c])).join(';'));
       return res.status(200).json({ rows: csvRows, cols: COLS, month: exportMonth, count: rows.length });
     }
@@ -631,7 +631,7 @@ async function streamJsonlGzToCsv(response, start, end, omsuFilter, sourceFilter
 
 // ─── Decompress gzip JSONL stream, filter rows by date/omsu, return array ───
 // Processes data line-by-line: never loads the entire file into RAM.
-async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = []) {
+async function decompressJsonlGz(response, start, end, omsuFilter, sourceFilter = [], subFilter = []) {
   const { createGunzip } = await import('node:zlib');
   const { StringDecoder } = await import('node:string_decoder');
 
