@@ -231,11 +231,47 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
         addToGroup(dst, g);
         total += g.total || 0;
       } else if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length > 0) {
-        // Sub filter only — sum selected subtopics
+        // Sub filter only — sum selected subtopics, scale group proportionally
         const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
-        if (subTotal > 0) {
-          const ratio = (g.total || 1) > 0 ? subTotal / g.total : 0;
-          addToGroupScaled(dst, g, ratio);
+        if (subTotal > 0 && g.total > 0) {
+          const ratio = subTotal / g.total;
+          // Override: add only the matching subs directly (accurate), scale rest
+          for (const subName of subFilter) {
+            const sv = g.subs?.[subName];
+            if (!sv || !sv.count) continue;
+            if (!dst.subs[subName]) dst.subs[subName] = { count: 0, facts: {} };
+            dst.subs[subName].count += sv.count;
+            for (const [f,n] of Object.entries(sv.facts||{}))
+              dst.subs[subName].facts[f] = (dst.subs[subName].facts[f]||0) + n;
+            // accumulate facts
+            for (const [f,n] of Object.entries(sv.facts||{}))
+              dst.facts[f] = (dst.facts[f]||0) + n;
+          }
+          dst.total += subTotal;
+          // Scale omsu, mails, addrs proportionally
+          for (const [k,v] of Object.entries(g.omsu||{})) {
+            if (!dst.omsu[k]) dst.omsu[k] = { c:0, subs:{} };
+            dst.omsu[k].c += Math.round(v.c * ratio);
+            for (const [s,n] of Object.entries(v.subs||{}))
+              dst.omsu[k].subs[s] = (dst.omsu[k].subs[s]||0) + Math.round(n * ratio);
+          }
+          for (const [k,v] of Object.entries(g.mails||{})) {
+            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[] };
+            dst.mails[k].c += Math.round(v.c * ratio);
+            for (const [f,n] of Object.entries(v.facts||{}))
+              dst.mails[k].facts[f] = (dst.mails[k].facts[f]||0) + Math.round(n * ratio);
+            const ex = new Set(dst.mails[k].omsus);
+            for (const o of (v.omsus||[])) ex.add(o);
+            dst.mails[k].omsus = [...ex];
+          }
+          for (const [k,v] of Object.entries(g.addrs||{})) {
+            if (!dst.addrs[k]) dst.addrs[k] = { c:0, subs:{}, omsus:{} };
+            dst.addrs[k].c += Math.round(v.c * ratio);
+            for (const [s,n] of Object.entries(v.subs||{}))
+              dst.addrs[k].subs[s] = (dst.addrs[k].subs[s]||0) + Math.round(n * ratio);
+            for (const [o,n] of Object.entries(v.omsus||{}))
+              dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o]||0) + Math.round(n * ratio);
+          }
           total += subTotal;
         }
       } else if (omsuFilter.length === 0 && sourceFilter.length > 0) {
