@@ -311,12 +311,12 @@ async function generateSms(){
 
     const msg=[];
 
-    msg.push(`📋 Докладываю по жалобам за ${periodLabel}:`);
+    msg.push(` Докладываю по жалобам за ${periodLabel}:`);
     msg.push('');
     msg.push(`🔘 ДВОР поступило ${formatNum(mainTotal)} ${plural(mainTotal)}`);
     msg.push(`   ${fmtDyn(mainTotal,prevTotal)} к ${prevLabel} / ${fmtDyn(mainTotal,y25Total)} к ${y25Label} / ${fmtDyn(mainTotal,wkTotal)} к ${wkLabel}`);
     msg.push('');
-    msg.push(`   📊 С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)} / ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
+    msg.push(`   С начала года: ${formatNum(ytdTotal)} ${plural(ytdTotal)} / ${fmtDyn(ytdTotal,ytd25Total)} к АППГ`);
     msg.push('');
 
     blockOrder.forEach((id,bi)=>{
@@ -334,7 +334,7 @@ async function generateSms(){
       msg.push(`${EMOJIS[bi]} ${blockDef.name.toUpperCase()} — ${formatNum(cur)} ${plural(cur)}`);
       msg.push(`   ${fmtDyn(cur,prev)} к ${prevLabel} / ${fmtDyn(cur,y25)} к ${y25Label} / ${fmtDyn(cur,wk)} к ${wkLabel}`);
       msg.push('');
-      msg.push(`   📊 С начала года: ${formatNum(ytd)} ${plural(ytd)} / ${fmtDyn(ytd,ytd25)} к АППГ`);
+      msg.push(`   С начала года: ${formatNum(ytd)} ${plural(ytd)} / ${fmtDyn(ytd,ytd25)} к АППГ`);
       msg.push('');
 
       const topSubs=getTopSubsWithOmsu(mainG, blockDef.topN, prevG, y25G, wkG);
@@ -349,7 +349,7 @@ async function generateSms(){
           if(dynY25)  dynParts.push(`${dynY25} к ${y25Label}`);
           if(dynWk)   dynParts.push(`${dynWk} к ${wkLabel}`);
           msg.push(`   ${si+1}. ${s.name}: ${formatNum(s.count)} / ${dynParts.join(' / ')}`);
-          s.topOmsu.forEach(o => msg.push(`      🔸 ${o}`));
+          s.topOmsu.forEach(o => msg.push(`       ${o}`));
         });
       }
       msg.push('');
