@@ -279,8 +279,15 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
         const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
         const ratio = (g.total || 1) > 0 ? srcTotal / g.total : 0;
         if (ratio > 0) {
-          addToGroupScaled(dst, g, ratio);
-          total += srcTotal;
+          // Apply subFilter on top of source filter
+          let finalRatio = ratio;
+          if (subFilter.length > 0 && g.total > 0) {
+            const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+            if (subTotal === 0) continue;
+            finalRatio = ratio * (subTotal / g.total);
+          }
+          addToGroupScaled(dst, g, finalRatio);
+          total += Math.round(srcTotal * (subFilter.length > 0 && g.total > 0 ? subFilter.reduce((s2, s) => s2 + (g.subs?.[s]?.count||0), 0)/g.total : 1));
         }
       } else {
         // Filter by OMSU — only count rows from selected OMSU
@@ -304,6 +311,14 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
               dst.facts[f] = (dst.facts[f] || 0) + Math.round(fn * ratio);
             }
           }
+        }
+        // Apply subFilter on top of OMSU filter
+        if (subFilter.length > 0 && g.total > 0) {
+          const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+          if (subTotal === 0) { continue; }
+          const subRatio = subTotal / g.total;
+          groupTotal = Math.round(groupTotal * subRatio);
+          if (groupTotal === 0) continue;
         }
         dst.total += groupTotal;
         total += groupTotal;
