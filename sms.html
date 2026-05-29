@@ -231,17 +231,11 @@ function getTopSubsWithOmsu(group, topN, prevGroup, y25Group, wkGroup){
   const groupTotal = group.total || 1;
 
   return (group.subs||[]).slice(0, topN).map(s => {
-    const subShare = (s.count||0) / groupTotal; // share of this subtopic in group
-
-    // For each OMSU estimate count for this subtopic:
-    // - If this sub IS their mainSub → use exact mainSubCnt
-    // - Otherwise → estimate as omsu.count * subShare
-    const omsuEstimates = (group.omsus||[]).map(o => {
-      const cnt = o.mainSub === s.name
-        ? (o.mainSubCnt || 0)
-        : Math.round((o.count||0) * subShare);
-      return {name: o.name, cnt};
-    }).filter(o => o.cnt > 0)
+    // Use exact omsu.subs[subName] count — precise cross-reference from agg.json
+    const omsuEstimates = (group.omsus||[]).map(o => ({
+      name: o.name,
+      cnt: (o.subs && o.subs[s.name]) || 0
+    })).filter(o => o.cnt > 0)
       .sort((a,b) => b.cnt - a.cnt)
       .slice(0, 3)
       .map(o => `${o.name} — ${formatNum(o.cnt)}`);
