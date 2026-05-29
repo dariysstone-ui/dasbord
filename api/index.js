@@ -71,7 +71,7 @@ export default async function handler(req, res) {
         months.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
         cur.setMonth(cur.getMonth() + 1);
       }
-      return res.status(200).json({ mode: 'chunked-csv', months, start, end, omsuFilter, sourceFilter, subFilter, sgFilter, yearsNeeded: [...yearsNeeded] });
+      return res.status(200).json({ mode: 'chunked-csv', months, start, end, , sourceFilter, subFilter, sgFilter, yearsNeeded: [...yearsNeeded] });
     }
 
     // ── CSV chunk export: one month at a time ──
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ rows: [], cols: COLS, month: exportMonth });
       }
 
-      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, omsuFilter, sourceFilter, subFilter, sgFilter);
+      const rows = await decompressJsonlGz(r, chunkStart, chunkEnd, , sourceFilter, subFilter, sgFilter);
       const csvRows = rows.map(row => COLS.map(c => esc(row[c])).join(';'));
       return res.status(200).json({ rows: csvRows, cols: COLS, month: exportMonth, count: rows.length });
     }
@@ -474,45 +474,51 @@ function buildDaily(allDays, start, end, omsuFilter, sourceFilter = [], subFilte
 
 // ─── Build dashboard data from aggregated groups ───
 function processDashboardData(main, comp) {
-  const result = [];
-  const dyn = (v, cv) => {
-    const d = (v||0) - (cv||0);
-    return { pct: (cv||0) === 0 ? ((v||0) > 0 ? 100 : 0) : Math.round((d/cv)*100), abs: d };
-  };
-
-  for (const [name, m] of Object.entries(main)) {
-    if (!m.total || m.total === 0) continue;
-    const c = comp[name] || { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{} };
-    const entry = { name, total: m.total, compTotal: c.total||0, subs:[], facts:[], omsus:[], mails:[], addrs:[] };
-    const safeTotal = m.total || 1;
-
-    Object.entries(m.subs||{}).sort((a,b)=>b[1].count-a[1].count).forEach(([k,v]) => {
-      const {pct,abs} = dyn(v.count||0, c.subs[k]?.count||0);
-      entry.subs.push({ name:k, count:v.count||0, pctGroup:Math.round(((v.count||0)/safeTotal)*100), dynPct:pct, dynAbs:abs,
-        facts: Object.entries(v.facts||{}).sort((a,b)=>b[1]-a[1]) });
-    });
-    Object.entries(m.facts||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v]) => {
-      const {pct,abs} = dyn(v||0, c.facts[k]||0);
-      entry.facts.push({ name:k, count:v||0, dynPct:pct, dynAbs:abs });
-    });
-    Object.entries(m.omsu||{}).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
-      const {pct,abs} = dyn(d.c||0, c.omsu[k]?.c||0);
-      const ss = Object.entries(d.subs||{}).sort((a,b)=>b[1]-a[1]);
-      entry.omsus.push({ name:k, count:d.c||0, dynPct:pct, dynAbs:abs,
-        mainSub:ss[0]?.[0]||'-', mainSubCnt:ss[0]?.[1]||0,
-        mainSubPct: (d.c||0)>0 ? Math.round((ss[0]?.[1]||0)/d.c*100) : 0 });
-    });
-    Object.entries(m.mails||{}).filter(([k])=>!k.includes('konus.group')).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
-      entry.mails.push({ email:k, count:d.c||0, facts:Object.entries(d.facts||{}).sort((a,b)=>b[1]-a[1]), omsus:d.omsus||[] });
-    });
-    Object.entries(m.addrs||{}).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
-      const ss = Object.entries(d.subs||{}).sort((a,b)=>b[1]-a[1]);
-      entry.addrs.push({ address:k, count:d.c||0, mainSub:ss[0]?.[0]||'-',
-        mainSubCnt:ss[0]?.[1]||0, mainSubPct: (d.c||0)>0?Math.round((ss[0]?.[1]||0)/d.c*100):0 });
-    });
-    result.push(entry);
+  // 1. Объединяем ОМСУ со всех групп в один плоский список
+  const globalOmsuMap = new Map();
+  
+  for (const [, m] of Object.entries(main)) {
+    if (!m.total) continue;
+    for (const [name, d] of Object.entries(m.omsu || {})) {
+      if (!globalOmsuMap.has(name)) {
+        globalOmsuMap.set(name, { name, count: 0, compCount: 0, subs: {}, compSubs: {} });
+      }
+      const target = globalOmsuMap.get(name);
+      target.count += d.c || 0;
+      target.compCount += (comp[m.name]?.omsu?.[name]?.c) || 0;
+      
+      for (const [sub, cnt] of Object.entries(d.subs || {})) {
+        target.subs[sub] = (target.subs[sub] || 0) + cnt;
+      }
+      // comp subs (если нужно)
+      const cOmsu = comp[m.name]?.omsu?.[name];
+      if (cOmsu) {
+        for (const [sub, cnt] of Object.entries(cOmsu.subs || {})) {
+          target.compSubs[sub] = (target.compSubs[sub] || 0) + cnt;
+        }
+      }
+    }
   }
-  return result.sort((a,b)=>b.total-a.total);
+
+  // 2. Формируем итоговый массив
+  const omsus = [];
+  for (const [name, d] of globalOmsuMap) {
+    const dyn = (cv||0) === 0 ? ((d.count||0) > 0 ? 100 : 0) : Math.round(((d.count - (cv||0)) / (cv||0)) * 100);
+    omsus.push({
+      name,
+      count: d.count || 0,
+      dynPct: dyn,
+      dynAbs: (d.count || 0) - (d.compCount || 0),
+      // Фронтенд сам подставит нужную подтему из d.subs
+      subs: d.subs 
+    });
+  }
+
+  return [{ 
+    name: "Все группы", 
+    total: Object.values(main).reduce((s,g) => s + (g.total||0), 0),
+    omsus // Уже готовый к сортировке массив
+  }];
 }
 
 // ─── Date parser (used by buildRawRows) ───
