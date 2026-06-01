@@ -293,19 +293,64 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
           total += subTotal;
         }
       } else if (omsuFilter.length === 0 && sourceFilter.length > 0) {
-        // Source filter only — scale group by source ratio
+        // Source filter (+ optional subFilter) — scale by source ratio, then apply subFilter accurately
         const srcTotal = sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0);
-        const ratio = (g.total || 1) > 0 ? srcTotal / g.total : 0;
-        if (ratio > 0) {
-          // Apply subFilter on top of source filter
-          let finalRatio = ratio;
-          if (subFilter.length > 0 && g.total > 0) {
-            const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
-            if (subTotal === 0) continue;
-            finalRatio = ratio * (subTotal / g.total);
+        if (srcTotal === 0) continue;
+        const srcRatio = g.total > 0 ? srcTotal / g.total : 0;
+
+        if (subFilter.length > 0) {
+          // Source + sub filter: add exact subs, scale OMSU/mails/addrs by srcRatio then sub-filter
+          const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+          if (subTotal === 0) continue;
+          const effectiveTotal = Math.round(subTotal * srcRatio);
+          if (effectiveTotal === 0) continue;
+          dst.total += effectiveTotal;
+          total += effectiveTotal;
+          // Exact subs (scaled by source ratio)
+          for (const subName of subFilter) {
+            const sv = g.subs?.[subName];
+            if (!sv || !sv.count) continue;
+            if (!dst.subs[subName]) dst.subs[subName] = { count: 0, facts: {} };
+            const sc = Math.round(sv.count * srcRatio);
+            dst.subs[subName].count += sc;
+            for (const [f,n] of Object.entries(sv.facts||{}))
+              dst.subs[subName].facts[f] = (dst.subs[subName].facts[f]||0) + Math.round(n * srcRatio);
+            for (const [f,n] of Object.entries(sv.facts||{}))
+              dst.facts[f] = (dst.facts[f]||0) + Math.round(n * srcRatio);
           }
-          addToGroupScaled(dst, g, finalRatio);
-          total += Math.round(srcTotal * (subFilter.length > 0 && g.total > 0 ? subFilter.reduce((s2, s) => s2 + (g.subs?.[s]?.count||0), 0)/g.total : 1));
+          // OMSU: exact sub counts scaled by srcRatio
+          for (const [k,v] of Object.entries(g.omsu||{})) {
+            const omsuSubCount = Math.round(subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0) * srcRatio);
+            if (omsuSubCount === 0) continue;
+            if (!dst.omsu[k]) dst.omsu[k] = { c:0, subs:{} };
+            dst.omsu[k].c += omsuSubCount;
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.omsu[k].subs[sub] = (dst.omsu[k].subs[sub]||0) + Math.round(v.subs[sub] * srcRatio);
+          }
+          // Mails/addrs scaled
+          for (const [k,v] of Object.entries(g.mails||{})) {
+            const mailSubCount = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
+            if (mailSubCount === 0) continue;
+            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[], subs:{} };
+            dst.mails[k].c += Math.round(mailSubCount * srcRatio);
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.mails[k].subs[sub] = (dst.mails[k].subs[sub]||0) + Math.round(v.subs[sub] * srcRatio);
+            const ex = new Set(dst.mails[k].omsus);
+            for (const o of (v.omsus||[])) ex.add(o);
+            dst.mails[k].omsus = [...ex];
+          }
+          for (const [k,v] of Object.entries(g.addrs||{})) {
+            const addrSubCount = Math.round(subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0) * srcRatio);
+            if (addrSubCount === 0) continue;
+            if (!dst.addrs[k]) dst.addrs[k] = { c:0, subs:{}, omsus:{} };
+            dst.addrs[k].c += addrSubCount;
+            for (const sub of subFilter)
+              if (v.subs?.[sub]) dst.addrs[k].subs[sub] = (dst.addrs[k].subs[sub]||0) + Math.round(v.subs[sub] * srcRatio);
+          }
+        } else {
+          // Source filter only — scale whole group by source ratio
+          addToGroupScaled(dst, g, srcRatio);
+          total += srcTotal;
         }
       } else {
         // Filter by OMSU — only count rows from selected OMSU
