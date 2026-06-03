@@ -171,11 +171,12 @@ function mergeGroup(dst, src) {
   }
   // omsu
   for (const [k, v] of Object.entries(src.omsu || {})) {
-    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {} };
+    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {}, sources: {} };
     dst.omsu[k].c += v.c || 0;
-    for (const [s, n] of Object.entries(v.subs || {})) {
+    for (const [s, n] of Object.entries(v.subs || {}))
       dst.omsu[k].subs[s] = (dst.omsu[k].subs[s] || 0) + n;
-    }
+    for (const [s, n] of Object.entries(v.sources || {}))
+      dst.omsu[k].sources[s] = (dst.omsu[k].sources[s] || 0) + n;
   }
   // facts
   for (const [k, n] of Object.entries(src.facts || {})) {
@@ -354,42 +355,59 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
         }
       } else {
         // Filter by OMSU (+ optional sourceFilter + optional subFilter)
-        // Source ratio: what fraction of this group comes from selected sources
-        const srcRatio = sourceFilter.length > 0 && g.total > 0
-          ? sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0) / g.total
-          : 1;
-        if (srcRatio === 0) continue;
-
+        // Use exact omsu.sources[src] counts when sourceFilter active (added in aggregate_xlsx.py)
         let groupTotal = 0;
         for (const omsu of omsuFilter) {
           const od = g.omsu?.[omsu];
           if (!od) continue;
-          // Apply source ratio to OMSU count
-          const omsuCount = Math.round((od.c || 0) * srcRatio);
+
+          // Exact OMSU count filtered by sources
+          let omsuCount = od.c || 0;
+          if (sourceFilter.length > 0) {
+            // Use exact per-omsu source counts if available, else fall back to ratio
+            if (od.sources) {
+              omsuCount = sourceFilter.reduce((sum, s) => sum + (od.sources[s] || 0), 0);
+            } else {
+              const srcRatio = g.total > 0
+                ? sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0) / g.total
+                : 1;
+              omsuCount = Math.round((od.c || 0) * srcRatio);
+            }
+          }
+          if (omsuCount === 0) continue;
+
+          // Apply subFilter: scale by sub share within this OMSU
+          if (subFilter.length > 0) {
+            const omsuSubCount = subFilter.reduce((sum, s) => sum + (od.subs?.[s] || 0), 0);
+            if (omsuSubCount === 0) continue;
+            const subRatio = od.c > 0 ? omsuSubCount / od.c : 0;
+            omsuCount = Math.round(omsuCount * subRatio);
+            if (omsuCount === 0) continue;
+          }
+
           groupTotal += omsuCount;
           if (!dst.omsu[omsu]) dst.omsu[omsu] = { c: 0, subs: {} };
           dst.omsu[omsu].c += omsuCount;
+
+          // Source×sub ratio for scaling sub/fact counts
+          const scaleRatio = od.c > 0 ? omsuCount / od.c : 0;
           for (const [s, n] of Object.entries(od.subs || {})) {
-            const sn = Math.round(n * srcRatio);
+            if (subFilter.length > 0 && !subFilter.includes(s)) continue;
+            const sn = Math.round(n * scaleRatio);
+            if (sn === 0) continue;
             dst.omsu[omsu].subs[s] = (dst.omsu[omsu].subs[s] || 0) + sn;
             if (!dst.subs[s]) dst.subs[s] = { count: 0, facts: {} };
             dst.subs[s].count += sn;
-            const subTotal2 = g.subs?.[s]?.count || 1;
-            const ratio2 = (n * srcRatio) / subTotal2;
+            const subTotalG = g.subs?.[s]?.count || 1;
+            const factRatio = n / subTotalG;
             for (const [f, fn] of Object.entries(g.subs?.[s]?.facts || {})) {
-              dst.subs[s].facts[f] = (dst.subs[s].facts[f] || 0) + Math.round(fn * ratio2);
-              dst.facts[f] = (dst.facts[f] || 0) + Math.round(fn * ratio2);
+              const fv = Math.round(fn * factRatio * scaleRatio);
+              dst.subs[s].facts[f] = (dst.subs[s].facts[f] || 0) + fv;
+              dst.facts[f] = (dst.facts[f] || 0) + fv;
             }
           }
         }
-        // Apply subFilter on top
-        if (subFilter.length > 0 && g.total > 0) {
-          const subTotal3 = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
-          if (subTotal3 === 0) { continue; }
-          const subRatio = subTotal3 / g.total;
-          groupTotal = Math.round(groupTotal * subRatio);
-          if (groupTotal === 0) continue;
-        }
+        if (groupTotal === 0) continue;
         dst.total += groupTotal;
         total += groupTotal;
         // Add mails — include if any of mail's omsus match the filter
@@ -433,11 +451,12 @@ function addToGroup(dst, g) {
     }
   }
   for (const [k, v] of Object.entries(g.omsu || {})) {
-    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {} };
+    if (!dst.omsu[k]) dst.omsu[k] = { c: 0, subs: {}, sources: {} };
     dst.omsu[k].c += v.c || 0;
-    for (const [s, n] of Object.entries(v.subs || {})) {
+    for (const [s, n] of Object.entries(v.subs || {}))
       dst.omsu[k].subs[s] = (dst.omsu[k].subs[s] || 0) + n;
-    }
+    for (const [s, n] of Object.entries(v.sources || {}))
+      dst.omsu[k].sources[s] = (dst.omsu[k].sources[s] || 0) + n;
   }
   for (const [k, n] of Object.entries(g.facts || {})) {
     dst.facts[k] = (dst.facts[k] || 0) + n;
