@@ -353,33 +353,40 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
           total += srcTotal;
         }
       } else {
-        // Filter by OMSU — only count rows from selected OMSU
+        // Filter by OMSU (+ optional sourceFilter + optional subFilter)
+        // Source ratio: what fraction of this group comes from selected sources
+        const srcRatio = sourceFilter.length > 0 && g.total > 0
+          ? sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0) / g.total
+          : 1;
+        if (srcRatio === 0) continue;
+
         let groupTotal = 0;
         for (const omsu of omsuFilter) {
           const od = g.omsu?.[omsu];
           if (!od) continue;
-          groupTotal += od.c || 0;
+          // Apply source ratio to OMSU count
+          const omsuCount = Math.round((od.c || 0) * srcRatio);
+          groupTotal += omsuCount;
           if (!dst.omsu[omsu]) dst.omsu[omsu] = { c: 0, subs: {} };
-          dst.omsu[omsu].c += od.c || 0;
+          dst.omsu[omsu].c += omsuCount;
           for (const [s, n] of Object.entries(od.subs || {})) {
-            dst.omsu[omsu].subs[s] = (dst.omsu[omsu].subs[s] || 0) + n;
-            // Add to subs
+            const sn = Math.round(n * srcRatio);
+            dst.omsu[omsu].subs[s] = (dst.omsu[omsu].subs[s] || 0) + sn;
             if (!dst.subs[s]) dst.subs[s] = { count: 0, facts: {} };
-            dst.subs[s].count += n;
-            // Facts for this sub — proportional from day's sub facts
-            const subTotal = g.subs?.[s]?.count || 1;
-            const ratio = n / subTotal;
+            dst.subs[s].count += sn;
+            const subTotal2 = g.subs?.[s]?.count || 1;
+            const ratio2 = (n * srcRatio) / subTotal2;
             for (const [f, fn] of Object.entries(g.subs?.[s]?.facts || {})) {
-              dst.subs[s].facts[f] = (dst.subs[s].facts[f] || 0) + Math.round(fn * ratio);
-              dst.facts[f] = (dst.facts[f] || 0) + Math.round(fn * ratio);
+              dst.subs[s].facts[f] = (dst.subs[s].facts[f] || 0) + Math.round(fn * ratio2);
+              dst.facts[f] = (dst.facts[f] || 0) + Math.round(fn * ratio2);
             }
           }
         }
-        // Apply subFilter on top of OMSU filter
+        // Apply subFilter on top
         if (subFilter.length > 0 && g.total > 0) {
-          const subTotal = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
-          if (subTotal === 0) { continue; }
-          const subRatio = subTotal / g.total;
+          const subTotal3 = subFilter.reduce((sum, s) => sum + (g.subs?.[s]?.count || 0), 0);
+          if (subTotal3 === 0) { continue; }
+          const subRatio = subTotal3 / g.total;
           groupTotal = Math.round(groupTotal * subRatio);
           if (groupTotal === 0) continue;
         }
