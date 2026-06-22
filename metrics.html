@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Отклонение от метрики — Содержание территории</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--panel:#151921;--card:#1a2030;--b:#243044;--bl:#1e2d42;
+  --t:#e2eaf6;--tm:#7a90b0;--td:#4a607e;--ac:#3b82f6;--ok:#10b981;--er:#f43f5e;
+  --warn:#f59e0b;--r:10px
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;padding:16px}
+.wrap{max-width:1400px;margin:0 auto}
+.panel{background:var(--panel);border:1px solid var(--b);border-radius:var(--r);padding:18px 20px;margin-bottom:14px}
+.hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.hdr h2{font-size:16px;font-weight:700}
+.badge{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.35);color:var(--ac);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.fg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:700px){.fg{grid-template-columns:1fr 1fr}}
+label{display:block;margin-bottom:4px;color:var(--tm);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+input[type=date]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;outline:none;transition:border-color .2s}
+input[type=date]:focus{border-color:var(--ac)}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:12px;transition:all .2s;white-space:nowrap}
+.btn-p{background:var(--ac);color:white}.btn-p:hover{background:#2563eb}
+.btn-w{background:rgba(59,130,246,.15);color:var(--ac);border:1px solid rgba(59,130,246,.3)}.btn-w.active,.btn-w:hover{background:var(--ac);color:white;border-color:var(--ac)}
+.btn-m{background:rgba(16,185,129,.15);color:var(--ok);border:1px solid rgba(16,185,129,.3)}.btn-m.active,.btn-m:hover{background:var(--ok);color:white;border-color:var(--ok)}
+.btn-d{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.3)}.btn-d.active,.btn-d:hover{background:var(--warn);color:white;border-color:var(--warn)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.info{font-size:11px;color:var(--tm);padding:6px 0;min-height:20px}
+.info.ok{color:var(--ok)}.info.err{color:var(--er)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--card);padding:8px 10px;font-weight:600;color:var(--tm);text-align:left;border-bottom:2px solid var(--b);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{color:var(--t)}
+th.sort-asc::after{content:' ▲'}
+th.sort-desc::after{content:' ▼'}
+td{padding:7px 10px;border-bottom:1px solid var(--bl);vertical-align:middle}
+tr:hover td{background:rgba(59,130,246,.04)}
+.omsu-name{font-weight:600}
+.metric{color:var(--tm)}
+.actual{font-weight:700}
+.dev{font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap}
+.dev.green{background:rgba(16,185,129,.2);color:#34d399}
+.dev.yellow{background:rgba(245,158,11,.2);color:#fbbf24}
+.dev.red{background:rgba(244,63,94,.2);color:#f87171}
+.dev.under{background:rgba(16,185,129,.2);color:#34d399}
+.bar-wrap{width:120px;height:8px;background:var(--bl);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}
+.bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.bar-green{background:var(--ok)}
+.bar-yellow{background:var(--warn)}
+.bar-red{background:var(--er)}
+.bar-under{background:var(--ok)}
+.summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:900px){.summary-cards{grid-template-columns:repeat(2,1fr)}}
+.sc{background:var(--card);border:1px solid var(--b);border-radius:8px;padding:12px 14px}
+.sc-val{font-size:22px;font-weight:800;color:var(--ac);line-height:1}
+.sc-lbl{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
+.method-box{background:var(--card);border:1px solid var(--bl);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--tm);line-height:1.6;margin-bottom:12px}
+.method-box b{color:var(--t)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="panel">
+  <div class="hdr">
+    <h2>📐 Отклонение от метрики</h2>
+    <span class="badge">Содержание территории</span>
+  </div>
+
+  <div class="fg">
+    <div><label>Период: с</label><input type="date" id="dateFrom"></div>
+    <div><label>Период: по</label><input type="date" id="dateTo"></div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label>URL API</label>
+      <input type="date" id="_unused" style="display:none">
+      <input type="text" id="apiUrl" value="/api" style="width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:12px;outline:none" placeholder="https://dasbord-ashen.vercel.app/api">
+    </div>
+  </div>
+
+  <div style="margin-bottom:10px">
+    <label style="margin-bottom:6px">Способ расчёта метрики:</label>
+    <div class="btn-group">
+      <button class="btn btn-w active" id="mode-week" onclick="setMode('week')">📅 По недельному показателю</button>
+      <button class="btn btn-m" id="mode-month" onclick="setMode('month')">📆 По месячному показателю</button>
+      <button class="btn btn-d" id="mode-period" onclick="setMode('period')">🗓️ По показателю периода</button>
+    </div>
+  </div>
+
+  <div class="method-box" id="method-desc"></div>
+
+  <div class="btn-group">
+    <button class="btn btn-p" id="genBtn" onclick="generate()">🚀 Сформировать</button>
+  </div>
+  <div class="info" id="info"></div>
+</div>
+
+<div id="result" style="display:none">
+  <div class="summary-cards" id="summary"></div>
+  <div class="panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;font-weight:600" id="tbl-title"></div>
+      <input type="text" id="search" placeholder="🔍 Поиск ОМСУ..." oninput="filterTable()" style="padding:7px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:12px;outline:none;width:200px">
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th onclick="sortBy('rank')">#</th>
+          <th onclick="sortBy('omsu')">ОМСУ</th>
+          <th onclick="sortBy('metric')">Метрика</th>
+          <th onclick="sortBy('actual')">Факт</th>
+          <th onclick="sortBy('dev')">Отклонение</th>
+          <th>Загрузка</th>
+        </tr></thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// METRIC DATA — embedded from PPTX
+// ═══════════════════════════════════════════════════════
+const WEEKLY = {
+  "Балашиха":{"Июнь":478,"Июль":414,"Август":416},
+  "Богородский":{"Июнь":158,"Июль":151,"Август":138},
+  "Бронницы":{"Июнь":13,"Июль":12,"Август":10},
+  "Волоколамский":{"Июнь":36,"Июль":41,"Август":32},
+  "Воскресенск":{"Июнь":172,"Июль":147,"Август":139},
+  "Дмитровский":{"Июнь":125,"Июль":112,"Август":89},
+  "Долгопрудный":{"Июнь":113,"Июль":102,"Август":94},
+  "Домодедово":{"Июнь":153,"Июль":151,"Август":140},
+  "Дубна":{"Июнь":40,"Июль":44,"Август":35},
+  "Егорьевск":{"Июнь":46,"Июль":47,"Август":41},
+  "Жуковский":{"Июнь":114,"Июль":108,"Август":85},
+  "Зарайск":{"Июнь":15,"Июль":12,"Август":10},
+  "Истра":{"Июнь":118,"Июль":112,"Август":95},
+  "Кашира":{"Июнь":51,"Июль":56,"Август":48},
+  "Клин":{"Июнь":87,"Июль":81,"Август":60},
+  "Коломна":{"Июнь":227,"Июль":207,"Август":185},
+  "Королёв":{"Июнь":275,"Июль":244,"Август":216},
+  "Котельники":{"Июнь":39,"Июль":41,"Август":39},
+  "Красногорск":{"Июнь":356,"Июль":340,"Август":329},
+  "Ленинский":{"Июнь":235,"Июль":231,"Август":201},
+  "Лобня":{"Июнь":148,"Июль":130,"Август":114},
+  "Лосино-Петровский":{"Июнь":75,"Июль":56,"Август":50},
+  "Лотошино":{"Июнь":12,"Июль":10,"Август":8},
+  "Луховицы":{"Июнь":32,"Июль":36,"Август":35},
+  "Лыткарино":{"Июнь":35,"Июль":38,"Август":36},
+  "Люберцы":{"Июнь":408,"Июль":422,"Август":383},
+  "Можайский":{"Июнь":43,"Июль":40,"Август":42},
+  "Мытищи":{"Июнь":344,"Июль":337,"Август":293},
+  "Наро-Фоминский":{"Июнь":142,"Июль":136,"Август":122},
+  "Одинцовский":{"Июнь":516,"Июль":447,"Август":411},
+  "Орехово-Зуевский":{"Июнь":103,"Июль":91,"Август":73},
+  "Павлово-Посадский":{"Июнь":55,"Июль":49,"Август":49},
+  "Подольск":{"Июнь":449,"Июль":436,"Август":343},
+  "Пушкинский":{"Июнь":329,"Июль":302,"Август":261},
+  "Раменский":{"Июнь":167,"Июль":168,"Август":156},
+  "Реутов":{"Июнь":105,"Июль":108,"Август":89},
+  "Рузский":{"Июнь":45,"Июль":42,"Август":34},
+  "Сергиево-Посадский":{"Июнь":178,"Июль":154,"Август":120},
+  "Серебряные Пруды":{"Июнь":6,"Июль":6,"Август":3},
+  "Серпухов":{"Июнь":158,"Июль":145,"Август":111},
+  "Солнечногорск":{"Июнь":184,"Июль":185,"Август":157},
+  "Ступино":{"Июнь":77,"Июль":72,"Август":55},
+  "Талдомский":{"Июнь":16,"Июль":13,"Август":10},
+  "Фрязино":{"Июнь":60,"Июль":51,"Август":54},
+  "Химки":{"Июнь":434,"Июль":444,"Август":413},
+  "Черноголовка":{"Июнь":11,"Июль":10,"Август":9},
+  "Чехов":{"Июнь":115,"Июль":105,"Август":90},
+  "Шатура":{"Июнь":40,"Июль":45,"Август":33},
+  "Шаховская":{"Июнь":7,"Июль":8,"Август":7},
+  "Щелково":{"Июнь":162,"Июль":133,"Август":109},
+  "Электросталь":{"Июнь":141,"Июль":138,"Август":119},
+  "Власиха":{"Июнь":12,"Июль":11,"Август":10},
+  "Восход":{"Июнь":1,"Июль":0,"Август":0},
+  "Звездный городок":{"Июнь":1,"Июль":2,"Август":1},
+  "Краснознаменск":{"Июнь":21,"Июль":23,"Август":20},
+  "Молодежный":{"Июнь":2,"Июль":2,"Август":1}
+};
+
+const MONTHLY = {
+  "Балашиха":{"Июнь":2070,"Июль":1793,"Август":1801},
+  "Богородский":{"Июнь":684,"Июль":654,"Август":598},
+  "Бронницы":{"Июнь":56,"Июль":52,"Август":43},
+  "Волоколамский":{"Июнь":156,"Июль":178,"Август":139},
+  "Воскресенск":{"Июнь":745,"Июль":637,"Август":602},
+  "Дмитровский":{"Июнь":541,"Июль":485,"Август":385},
+  "Долгопрудный":{"Июнь":489,"Июль":442,"Август":407},
+  "Домодедово":{"Июнь":662,"Июль":654,"Август":606},
+  "Дубна":{"Июнь":173,"Июль":191,"Август":152},
+  "Егорьевск":{"Июнь":199,"Июль":204,"Август":178},
+  "Жуковский":{"Июнь":494,"Июль":468,"Август":368},
+  "Зарайск":{"Июнь":65,"Июль":52,"Август":43},
+  "Истра":{"Июнь":511,"Июль":485,"Август":411},
+  "Кашира":{"Июнь":221,"Июль":242,"Август":208},
+  "Клин":{"Июнь":377,"Июль":351,"Август":260},
+  "Коломна":{"Июнь":983,"Июль":896,"Август":801},
+  "Королёв":{"Июнь":1191,"Июль":1057,"Август":935},
+  "Котельники":{"Июнь":169,"Июль":178,"Август":169},
+  "Красногорск":{"Июнь":1541,"Июль":1472,"Август":1425},
+  "Ленинский":{"Июнь":1018,"Июль":1000,"Август":870},
+  "Лобня":{"Июнь":641,"Июль":563,"Август":494},
+  "Лосино-Петровский":{"Июнь":325,"Июль":242,"Август":216},
+  "Лотошино":{"Июнь":52,"Июль":43,"Август":35},
+  "Луховицы":{"Июнь":139,"Июль":156,"Август":152},
+  "Лыткарино":{"Июнь":152,"Июль":165,"Август":156},
+  "Люберцы":{"Июнь":1767,"Июль":1827,"Август":1658},
+  "Можайский":{"Июнь":186,"Июль":173,"Август":182},
+  "Мытищи":{"Июнь":1490,"Июль":1459,"Август":1269},
+  "Наро-Фоминский":{"Июнь":615,"Июль":589,"Август":528},
+  "Одинцовский":{"Июнь":2234,"Июль":1936,"Август":1780},
+  "Орехово-Зуевский":{"Июнь":446,"Июль":394,"Август":316},
+  "Павлово-Посадский":{"Июнь":238,"Июль":212,"Август":212},
+  "Подольск":{"Июнь":1944,"Июль":1888,"Август":1485},
+  "Пушкинский":{"Июнь":1425,"Июль":1308,"Август":1130},
+  "Раменский":{"Июнь":723,"Июль":727,"Август":675},
+  "Реутов":{"Июнь":455,"Июль":468,"Август":385},
+  "Рузский":{"Июнь":195,"Июль":182,"Август":147},
+  "Сергиево-Посадский":{"Июнь":771,"Июль":667,"Август":520},
+  "Серебряные Пруды":{"Июнь":26,"Июль":26,"Август":13},
+  "Серпухов":{"Июнь":684,"Июль":628,"Август":481},
+  "Солнечногорск":{"Июнь":797,"Июль":801,"Август":680},
+  "Ступино":{"Июнь":333,"Июль":312,"Август":238},
+  "Талдомский":{"Июнь":69,"Июль":56,"Август":43},
+  "Фрязино":{"Июнь":260,"Июль":221,"Август":234},
+  "Химки":{"Июнь":1879,"Июль":1923,"Август":1788},
+  "Черноголовка":{"Июнь":48,"Июль":43,"Август":39},
+  "Чехов":{"Июнь":498,"Июль":455,"Август":390},
+  "Шатура":{"Июнь":173,"Июль":195,"Август":143},
+  "Шаховская":{"Июнь":30,"Июль":35,"Август":30},
+  "Щелково":{"Июнь":701,"Июль":576,"Август":472},
+  "Электросталь":{"Июнь":611,"Июль":598,"Август":515},
+  "Власиха":{"Июнь":52,"Июль":48,"Август":43},
+  "Восход":{"Июнь":4,"Июль":0,"Август":0},
+  "Звездный городок":{"Июнь":4,"Июль":9,"Август":4},
+  "Краснознаменск":{"Июнь":91,"Июль":100,"Август":87},
+  "Молодежный":{"Июнь":9,"Июль":9,"Август":4}
+};
+
+const MONTH_NAMES = {5:'Май',6:'Июнь',7:'Июль',8:'Август'};
+const DAYS_IN_MONTH = {5:31,6:30,7:31,8:31};
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let currentMode = 'week';
+let tableData = [];
+let sortCol = 'dev', sortDir = 1;
+
+// ═══════════════════════════════════════════════════════
+// MODE
+// ═══════════════════════════════════════════════════════
+const METHOD_DESC = {
+  week: '<b>Недельный показатель:</b> метрика = нормативное значение жалоб за неделю для каждого ОМСУ (из плановых показателей июнь–август 2026). Используйте для анализа периода ~7 дней.',
+  month: '<b>Месячный показатель:</b> метрика = нормативное значение жалоб за полный месяц. Используйте для анализа периода ~30 дней.',
+  period: '<b>По показателю периода:</b> метрика рассчитывается пропорционально длине периода. Для каждого дня периода берётся дневная норма (= недельная ÷ 7), суммируется за все дни. При попадании в разные месяцы — используются нормы соответствующих месяцев. Подходит для любого произвольного периода.'
+};
+
+function setMode(m) {
+  currentMode = m;
+  ['week','month','period'].forEach(x => {
+    document.getElementById('mode-'+x).classList.toggle('active', x===m);
+  });
+  document.getElementById('method-desc').innerHTML = METHOD_DESC[m];
+}
+setMode('week');
+
+// ═══════════════════════════════════════════════════════
+// METRIC CALCULATION
+// ═══════════════════════════════════════════════════════
+function getMonthName(monthNum) { return MONTH_NAMES[monthNum] || null; }
+
+function calcMetric(omsu, fromStr, toStr, mode) {
+  const from = new Date(fromStr), to = new Date(toStr);
+  const mn = getMonthName(from.getMonth()+1);
+
+  if (mode === 'week') {
+    // Sum daily norms (weekly/7) for each day — handles different monthly norms correctly
+    if (!WEEKLY[omsu]) return null;
+    let total = 0, valid = false;
+    const cur = new Date(from);
+    while (cur <= to) {
+      const mn2 = getMonthName(cur.getMonth()+1);
+      const weeklyNorm = mn2 && WEEKLY[omsu][mn2] ? WEEKLY[omsu][mn2] : null;
+      if (weeklyNorm !== null) { total += weeklyNorm / 7; valid = true; }
+      cur.setDate(cur.getDate()+1);
+    }
+    return valid ? Math.round(total) : null;
+  }
+  if (mode === 'month') {
+    // Sum daily norms (monthly/days_in_month) for each day
+    if (!MONTHLY[omsu]) return null;
+    let total = 0, valid = false;
+    const cur = new Date(from);
+    while (cur <= to) {
+      const m = cur.getMonth()+1;
+      const mn2 = getMonthName(m);
+      const monthlyNorm = mn2 && MONTHLY[omsu][mn2] ? MONTHLY[omsu][mn2] : null;
+      if (monthlyNorm !== null) {
+        total += monthlyNorm / (DAYS_IN_MONTH[m] || 30);
+        valid = true;
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    return valid ? Math.round(total) : null;
+  }
+  // mode === 'period': sum daily norms (weekly/7) for each day
+  if (!WEEKLY[omsu]) return null;
+  let total = 0;
+  const cur = new Date(from);
+  while (cur <= to) {
+    const mn2 = getMonthName(cur.getMonth()+1);
+    const weeklyNorm = mn2 && WEEKLY[omsu][mn2] ? WEEKLY[omsu][mn2] : null;
+    if (weeklyNorm === null) { cur.setDate(cur.getDate()+1); continue; }
+    total += weeklyNorm / 7;
+    cur.setDate(cur.getDate()+1);
+  }
+  return Math.round(total);
+}
+
+// ═══════════════════════════════════════════════════════
+// GENERATE
+// ═══════════════════════════════════════════════════════
+async function generate() {
+  const fromStr = document.getElementById('dateFrom').value;
+  const toStr   = document.getElementById('dateTo').value;
+  const apiUrl  = document.getElementById('apiUrl').value.trim();
+
+  if (!fromStr || !toStr) { setInfo('Выберите даты периода','err'); return; }
+  if (new Date(fromStr) > new Date(toStr)) { setInfo('Дата начала позже даты конца','err'); return; }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Загрузка...';
+  setInfo('Запрос к API...','');
+
+  try {
+    const resp = await fetch(apiUrl, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        start: fromStr, end: toStr,
+        compStart: fromStr, compEnd: toStr,
+        omsuFilter:[], sourceFilter:[], subFilter:[], sgFilter:['Содержание территории']
+      })
+    });
+    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error||`HTTP ${resp.status}`); }
+    const json = await resp.json();
+
+    // Find Содержание территории group
+    const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
+    const group = (json.data||[]).find(g => norm(g.name).includes('содержание территории'));
+    if (!group) { setInfo('Группа "Содержание территории" не найдена в данных','err'); return; }
+
+    // Build table rows from OMSU data
+    const days = Math.round((new Date(toStr)-new Date(fromStr))/86400000)+1;
+    const rows = [];
+
+    // Build actual count map from API
+    const actualMap = {};
+    (group.omsus||[]).forEach(o => { actualMap[o.name] = o.count||0; });
+
+    // For each OMSU in metric data
+    Object.keys(WEEKLY).forEach(omsu => {
+      const metric = calcMetric(omsu, fromStr, toStr, currentMode);
+      if (metric === null || metric === 0) return;
+
+      const actual = actualMap[omsu] || 0;
+      const dev = (actual / metric) - 1; // deviation: 0 = exact, >0 = over, <0 = under
+      rows.push({ omsu, metric, actual, dev, days });
+    });
+
+    // Sort by deviation descending (most over first)
+    rows.sort((a,b) => b.dev - a.dev);
+    rows.forEach((r,i) => r.rank = i+1);
+
+    tableData = rows;
+    renderSummary(rows, days, fromStr, toStr);
+    renderTable(rows);
+
+    setInfo(`✓ Загружено ${rows.length} ОМСУ, период ${days} дн.`,'ok');
+    document.getElementById('result').style.display = 'block';
+
+  } catch(err) {
+    setInfo('Ошибка: '+err.message,'err');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Сформировать';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
+function renderSummary(rows, days, fromStr, toStr) {
+  const over = rows.filter(r=>r.dev>0.1).length;
+  const under = rows.filter(r=>r.dev<-0.1).length;
+  const ontrack = rows.length - over - under;
+  const totalActual = rows.reduce((s,r)=>s+r.actual,0);
+  const totalMetric = rows.reduce((s,r)=>s+r.metric,0);
+  const totalDev = totalMetric>0 ? Math.round((totalActual/totalMetric-1)*100) : 0;
+
+  const modeLabel = currentMode==='week'?'неделя':currentMode==='month'?'месяц':'период';
+  const fromRu = new Date(fromStr).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  const toRu   = new Date(toStr).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  const periodLabel = fromStr===toStr ? fromRu : `${fromRu} – ${toRu}`;
+
+  document.getElementById('tbl-title').textContent = `${periodLabel} · ${days} дн. · режим: ${modeLabel}`;
+  document.getElementById('summary').innerHTML = `
+    <div class="sc"><div class="sc-val" style="color:var(--t)">${rows.length}</div><div class="sc-lbl">ОМСУ в расчёте</div></div>
+    <div class="sc"><div class="sc-val" style="color:var(--er)">${rows.filter(r=>r.dev>0.2).length} 🔴 / ${rows.filter(r=>r.dev>0.1&&r.dev<=0.2).length} 🟡</div><div class="sc-lbl">Превышают (+20% / +10–20%)</div></div>
+    <div class="sc"><div class="sc-val" style="color:var(--ok)">${under}</div><div class="sc-lbl">Ниже метрики (зелёные)</div></div>
+    <div class="sc"><div class="sc-val" style="color:${totalDev>10?'var(--er)':totalDev<-10?'var(--ok)':'var(--ac)'}">${totalDev>0?'+':''}${totalDev}%</div><div class="sc-lbl">Общее отклонение</div></div>
+  `;
+}
+
+function renderTable(rows) {
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = q ? rows.filter(r=>r.omsu.toLowerCase().includes(q)) : rows;
+  const maxDev = Math.max(...filtered.map(r=>Math.abs(r.dev)), 0.01);
+
+  document.getElementById('tbl-body').innerHTML = filtered.map(r => {
+    const devPct = Math.round(r.dev*100);
+    // Color by how much OVER metric: ≤10% green, 10-20% yellow, >20% red; under metric always green
+    const devClass = r.dev < 0 ? 'under' : r.dev <= 0.1 ? 'green' : r.dev <= 0.2 ? 'yellow' : 'red';
+    const devLabel = (devPct>0?'+':'')+devPct+'%';
+    const barW = Math.min(Math.abs(r.dev)/maxDev*100,100);
+    const barClass = r.dev < 0 ? 'bar-under' : r.dev <= 0.1 ? 'bar-green' : r.dev <= 0.2 ? 'bar-yellow' : 'bar-red';
+    return `<tr>
+      <td style="color:var(--td)">${r.rank}</td>
+      <td class="omsu-name">${r.omsu}</td>
+      <td class="metric">${fmt(r.metric)}</td>
+      <td class="actual">${fmt(r.actual)}</td>
+      <td><span class="dev ${devClass}">${devLabel}</span></td>
+      <td><div class="bar-wrap"><div class="bar-fill ${barClass}" style="width:${barW}%"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable() { renderTable(tableData); }
+
+function sortBy(col) {
+  if (sortCol===col) sortDir *= -1; else { sortCol=col; sortDir=1; }
+  tableData.sort((a,b)=>{
+    let av=a[col], bv=b[col];
+    if(typeof av==='string') return av.localeCompare(bv,'ru')*sortDir;
+    return (av-bv)*sortDir;
+  });
+  tableData.forEach((r,i)=>r.rank=i+1);
+  document.querySelectorAll('th').forEach(th=>th.className='');
+  document.querySelectorAll('th').forEach((th,i)=>{
+    const cols=['rank','omsu','metric','actual','dev','bar'];
+    if(cols[i]===sortCol) th.className='sort-'+(sortDir>0?'asc':'desc');
+  });
+  renderTable(tableData);
+}
+
+function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,'\u00a0'); }
+function setInfo(msg,cls){ const el=document.getElementById('info'); el.textContent=msg; el.className='info '+(cls||''); }
+
+// Set today as default
+const today = new Date().toISOString().slice(0,10);
+document.getElementById('dateFrom').value = today;
+document.getElementById('dateTo').value = today;
+</script>
+</body>
+</html>
