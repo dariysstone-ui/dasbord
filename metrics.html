@@ -445,7 +445,8 @@ function renderZato() {
 
 
 // ═══════════════════════════════════════════════════════
-// PPTX EXPORT — one slide, two columns, no ZATO
+// PPTX EXPORT — A4 landscape, real table, two columns, no ZATO
+// Matches reference PPTX style exactly
 // ═══════════════════════════════════════════════════════
 function exportPptx() {
   if (!tableData.length) return;
@@ -453,68 +454,109 @@ function exportPptx() {
   const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
   const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
   const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
-  const title = `Мониторинг обращений граждан по тематике «Содержание территории»\n${periodLabel}`;
 
+  // A4 landscape: 297mm x 210mm = 11.69" x 8.27"
   const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_16x9';
+  pptx.defineLayout({name:'A4L', width:11.69, height:8.27});
+  pptx.layout = 'A4L';
+
   const slide = pptx.addSlide();
 
-  // Title background
-  slide.addShape(pptx.ShapeType.rect, {x:0, y:0, w:'100%', h:1.4, fill:{color:'1B4F8A'}});
-  slide.addText(title, {x:0.2, y:0.1, w:9.6, h:1.2, fontSize:20, bold:true, color:'FFFFFF', wrap:true});
+  // ── Title block ──
+  const HDR_H = 0.72; // matches reference 0.775"
+  slide.addShape(pptx.ShapeType.rect, {x:0, y:0, w:11.69, h:HDR_H, fill:{color:'1B4F8A'}, line:{type:'none'}});
+  slide.addText(
+    `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`,
+    {x:0.15, y:0, w:11.39, h:HDR_H, fontSize:16, bold:true, color:'FFFFFF',
+     fontFace:'Arial', valign:'middle', wrap:true}
+  );
 
-  // Table headers
-  const HDR = ['ОМСУ','Допустимое значение','Поступило','Отклонение'];
-  const colW = [2.5, 1.8, 1.4, 1.4];
-  const ROW_H = 0.28;
-  const HDR_H = 0.5;
-  const Y0 = 1.5;
-  const col2X = 5.1; // second table X offset
-
-  const rows = tableData.slice(); // already sorted by dev desc
+  // ── Split rows: left half and right half by deviation desc ──
+  const rows = tableData.slice();
   const half = Math.ceil(rows.length / 2);
   const left  = rows.slice(0, half);
   const right = rows.slice(half);
 
+  // ── Column definitions ──
+  // Reference: colW [1.69, 1.51, 1.16, 1.44] inches per table, two tables side by side
+  const colWL = [{w:1.70},{w:1.51},{w:1.16},{w:1.44}]; // left table
+  const colWR = [{w:1.70},{w:1.51},{w:1.16},{w:1.44}]; // right table
+  const TABLE_W_INCH = 1.70+1.51+1.16+1.44; // ~5.81"
+  const GAP = 0.12;
+  const X_LEFT  = 0.08;
+  const X_RIGHT = X_LEFT + TABLE_W_INCH + GAP;
+  const Y_TBL   = HDR_H + 0.05;
+  const ROW_H_INCH = 0.208; // 0.224" ≈ 16pt row height
+  const HDR_ROW_H  = 0.55;
+
+  // ── Dev color ──
   function devColor(dev) {
-    if (dev > 0.2) return 'C0392B';
-    if (dev > 0.1) return 'D68910';
-    if (dev > 0)   return '27AE60';
-    return '27AE60';
+    if (dev > 0.2)  return 'C00000'; // red
+    if (dev > 0.1)  return 'C07000'; // amber
+    if (dev >= 0)   return '1E7B1E'; // green
+    return '1E7B1E'; // below metric = green
   }
 
-  function drawTable(rowsArr, xOffset) {
-    // Header
-    let x = xOffset;
-    HDR.forEach((h, i) => {
-      slide.addShape(pptx.ShapeType.rect, {x, y:Y0, w:colW[i], h:HDR_H, fill:{color:'2C3E50'}, line:{color:'FFFFFF',pt:0.5}});
-      slide.addText(h, {x:x+0.03, y:Y0+0.05, w:colW[i]-0.06, h:HDR_H-0.1, fontSize:9, bold:true, color:'FFFFFF', align:'center', wrap:true});
-      x += colW[i];
-    });
-    // Rows
-    rowsArr.forEach((r, ri) => {
-      let x2 = xOffset;
-      const bg = ri % 2 === 0 ? 'F2F3F4' : 'FFFFFF';
+  // ── Build table rows array for PptxGenJS ──
+  function buildTableRows(rowsArr, periodStr) {
+    const HDR_FILL = '2C3E50';
+    const HDR_COL  = 'FFFFFF';
+    const FONT     = 'Aptos Narrow';
+    const FONT_HDR = 'Arial';
+    const SZ_HDR   = 1200; // 12pt in hundredths
+    const SZ_DATA  = 1100; // 11pt
+
+    const border = {type:'solid', pt:0.5, color:'BFC9CA'};
+    const borderHdr = {type:'solid', pt:0.5, color:'FFFFFF'};
+
+    const hdrRow = [
+      {text:'ОМСУ',              options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
+      {text:`Допустимое\nзначение\n${periodStr}`, options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
+      {text:`Поступило\n${periodStr}`,            options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
+      {text:'Отклонение', options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
+    ];
+
+    const dataRows = rowsArr.map((r, ri) => {
       const pct = Math.round(r.dev * 100);
-      const devText = (pct >= 0 ? '+' : '') + pct + '%';
-      const devC = devColor(r.dev);
-      const cells = [r.omsu, fmt(r.metric), fmt(r.actual), devText];
-      cells.forEach((txt, ci) => {
-        const y = Y0 + HDR_H + ri * ROW_H;
-        slide.addShape(pptx.ShapeType.rect, {x:x2, y, w:colW[ci], h:ROW_H, fill:{color:bg}, line:{color:'BFC9CA',pt:0.3}});
-        const isBold = ci === 3;
-        const color  = ci === 3 ? devC : '1A1A1A';
-        slide.addText(txt, {x:x2+0.03, y:y+0.02, w:colW[ci]-0.06, h:ROW_H-0.04, fontSize:8, bold:isBold, color, align: ci===0?'left':'center'});
-        x2 += colW[ci];
-      });
+      const devTxt = (pct >= 0 ? '+' : '') + pct + '%';
+      const dc = devColor(r.dev);
+      const bgFill = ri % 2 === 0 ? {color:'FFFFFF'} : {color:'F2F3F4'};
+      return [
+        {text:r.omsu,       options:{fontSize:11, color:'000000', fontFace:FONT, align:'left',   valign:'bottom', fill:bgFill, margin:[0,0,0,4], border}},
+        {text:fmt(r.metric),options:{fontSize:11, color:'000000', fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, border}},
+        {text:fmt(r.actual),options:{fontSize:11, color:'000000', fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, border}},
+        {text:devTxt,       options:{fontSize:11, color:dc,       fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, bold:true, border}},
+      ];
     });
+
+    return [hdrRow, ...dataRows];
   }
 
-  drawTable(left,  0.15);
-  drawTable(right, col2X);
+  const periodHdr = fromStr===toStr
+    ? `${String(from.getDate()).padStart(2,'0')}.${String(from.getMonth()+1).padStart(2,'0')}`
+    : `${fmtD(from)}-${fmtD(to)}`;
+
+  const leftRows  = buildTableRows(left,  periodHdr);
+  const rightRows = buildTableRows(right, periodHdr);
+
+  slide.addTable(leftRows, {
+    x:X_LEFT, y:Y_TBL, w:TABLE_W_INCH,
+    colW:[1.70,1.51,1.16,1.44],
+    rowH:[HDR_ROW_H, ...Array(left.length).fill(ROW_H_INCH)],
+    fontFace:'Aptos Narrow', fontSize:11,
+    border:{type:'solid', pt:0.5, color:'BFC9CA'},
+  });
+
+  slide.addTable(rightRows, {
+    x:X_RIGHT, y:Y_TBL, w:TABLE_W_INCH,
+    colW:[1.70,1.51,1.16,1.44],
+    rowH:[HDR_ROW_H, ...Array(right.length).fill(ROW_H_INCH)],
+    fontFace:'Aptos Narrow', fontSize:11,
+    border:{type:'solid', pt:0.5, color:'BFC9CA'},
+  });
 
   // Slide number
-  slide.addText('1', {x:9.5, y:6.8, w:0.4, h:0.3, fontSize:10, color:'888888', align:'right'});
+  slide.addText('1', {x:11.2, y:8.0, w:0.4, h:0.25, fontSize:10, color:'888888', align:'right'});
 
   pptx.writeFile({fileName:`Метрика_${periodLabel}.pptx`});
 }
@@ -533,29 +575,28 @@ async function exportXlsx() {
   try {
     const wb = XLSX.utils.book_new();
 
-    // ── Sheet 1: Сводная ──
+    // ── Sheet 1: Сводная — with styling ──
     const periodLabel = fromStr === toStr ? fmtDateRu(fromStr) : `${fmtDateRu(fromStr)} – ${fmtDateRu(toStr)}`;
     const aoa1 = [];
-    aoa1.push([`Мониторинг обращений по тематике «Содержание территории» ${periodLabel}`]);
-    aoa1.push([]);
-    aoa1.push(['ОМСУ','Допустимое значение / Период','Поступило','Отклонение %','Метод расчёта']);
+    aoa1.push([`Мониторинг обращений по тематике «Содержание территории» ${periodLabel}`, '', '', '', '']);
+    aoa1.push(['', '', '', '', '']);
+    aoa1.push(['ОМСУ', 'Допустимое значение / Период', 'Поступило', 'Отклонение %', 'Метод расчёта']);
 
     tableData.forEach(r => {
       const pct = Math.round(r.dev * 100);
       aoa1.push([r.omsu, r.metric, r.actual, (pct >= 0 ? '+' : '') + pct + '%', r.method]);
     });
 
-    // Totals row
     const totMetric = tableData.reduce((s,r)=>s+r.metric,0);
     const totActual = tableData.reduce((s,r)=>s+r.actual,0);
     const totDev = totMetric > 0 ? Math.round((totActual/totMetric-1)*100) : 0;
     aoa1.push(['ИТОГО', totMetric, totActual, (totDev>=0?'+':'')+totDev+'%', '']);
-    aoa1.push([]);
+    aoa1.push(['', '', '', '', '']);
 
-    // ZATO block
+    const zatoStartRow = aoa1.length;
     if (zatoData.length) {
-      aoa1.push(['Закрытые административно-территориальные образования (ЗАТО)']);
-      aoa1.push(['ОМСУ','Допустимое значение / Период','Поступило','Отклонение %','Метод расчёта']);
+      aoa1.push(['Закрытые административно-территориальные образования (ЗАТО)', '', '', '', '']);
+      aoa1.push(['ОМСУ', 'Допустимое значение / Период', 'Поступило', 'Отклонение %', 'Метод расчёта']);
       zatoData.forEach(r => {
         const pct = Math.round(r.dev * 100);
         aoa1.push([r.omsu, r.metric, r.actual, (pct>=0?'+':'')+pct+'%', r.method]);
@@ -563,9 +604,108 @@ async function exportXlsx() {
     }
 
     const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
-    ws1['!cols'] = [{wch:28},{wch:22},{wch:12},{wch:14},{wch:28}];
-    // Merge title cell
-    ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}}];
+    ws1['!cols'] = [{wch:30},{wch:24},{wch:12},{wch:14},{wch:28}];
+    ws1['!merges'] = [
+      {s:{r:0,c:0},e:{r:0,c:4}},
+      ...(zatoData.length ? [{s:{r:zatoStartRow,c:0},e:{r:zatoStartRow,c:4}}] : [])
+    ];
+    ws1['!rows'] = [{hpt:18},{hpt:6},{hpt:22}];
+
+    // Style helper
+    const mainDataRows = tableData.length;
+    const hdrRow = 2; // 0-indexed
+    const dataStart = 3;
+    const totRow = dataStart + mainDataRows;
+
+    // Border style
+    const bord = {style:'thin', color:{rgb:'BBBBBB'}};
+    const bordB = {style:'medium', color:{rgb:'444444'}};
+    const allBord = {top:bord, bottom:bord, left:bord, right:bord};
+
+    // Style cells
+    const styleCellRange = (ws, r1, c1, r2, c2, styleFn) => {
+      for (let r=r1; r<=r2; r++) {
+        for (let c=c1; c<=c2; c++) {
+          const addr = XLSX.utils.encode_cell({r,c});
+          if (!ws[addr]) ws[addr] = {v:'', t:'s'};
+          ws[addr].s = styleFn(r, c, ws[addr].v);
+        }
+      }
+    };
+
+    // Title row
+    const titleCell = ws1['A1'];
+    if (titleCell) titleCell.s = {font:{bold:true, sz:13, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1B4F8A'}}, alignment:{horizontal:'left', vertical:'center', wrapText:true}};
+
+    // Header row
+    for (let c=0; c<5; c++) {
+      const addr = XLSX.utils.encode_cell({r:hdrRow, c});
+      if (!ws1[addr]) ws1[addr] = {v:'', t:'s'};
+      ws1[addr].s = {font:{bold:true, sz:11, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2C3E50'}}, alignment:{horizontal:'center', vertical:'center', wrapText:true}, border:{top:{style:'thin',color:{rgb:'FFFFFF'}}, bottom:{style:'thin',color:{rgb:'FFFFFF'}}, left:{style:'thin',color:{rgb:'FFFFFF'}}, right:{style:'thin',color:{rgb:'FFFFFF'}}}};
+    }
+
+    // Data rows
+    for (let ri=0; ri<mainDataRows; ri++) {
+      const r = dataStart + ri;
+      const rowData = tableData[ri];
+      const pct = Math.round(rowData.dev * 100);
+      const isEven = ri % 2 === 0;
+      const bgRgb = isEven ? 'FFFFFF' : 'F2F3F4';
+      for (let c=0; c<5; c++) {
+        const addr = XLSX.utils.encode_cell({r, c});
+        if (!ws1[addr]) ws1[addr] = {v:'', t:'s'};
+        let fontColor = '000000';
+        let bold = false;
+        if (c === 3) {
+          bold = true;
+          fontColor = pct > 20 ? 'C00000' : pct > 10 ? 'C07000' : '1E7B1E';
+        }
+        ws1[addr].s = {
+          font:{sz:11, color:{rgb:fontColor}, bold},
+          fill:{fgColor:{rgb:bgRgb}},
+          alignment:{horizontal: c===0 ? 'left' : 'center', vertical:'center'},
+          border: allBord
+        };
+      }
+    }
+
+    // Totals row
+    for (let c=0; c<5; c++) {
+      const addr = XLSX.utils.encode_cell({r:totRow, c});
+      if (!ws1[addr]) ws1[addr] = {v:'', t:'s'};
+      const pctTot = totDev;
+      let fontColor = '000000';
+      if (c===3) fontColor = pctTot > 20 ? 'C00000' : pctTot > 10 ? 'C07000' : '1E7B1E';
+      ws1[addr].s = {font:{bold:true, sz:11, color:{rgb:fontColor}}, fill:{fgColor:{rgb:'E8ECF0'}},
+        alignment:{horizontal: c===0?'left':'center', vertical:'center'},
+        border:{top:{style:'medium',color:{rgb:'444444'}}, bottom:{style:'medium',color:{rgb:'444444'}}, left:bord, right:bord}};
+    }
+
+    // ZATO header + rows
+    if (zatoData.length) {
+      const zatoHdrCell = ws1[XLSX.utils.encode_cell({r:zatoStartRow, c:0})];
+      if (zatoHdrCell) zatoHdrCell.s = {font:{bold:true, sz:12, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1B4F8A'}}, alignment:{horizontal:'left', vertical:'center'}};
+      const zatoTblHdr = zatoStartRow + 1;
+      for (let c=0; c<5; c++) {
+        const addr = XLSX.utils.encode_cell({r:zatoTblHdr, c});
+        if (!ws1[addr]) ws1[addr] = {v:'', t:'s'};
+        ws1[addr].s = {font:{bold:true, sz:11, color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'2C3E50'}}, alignment:{horizontal:'center', vertical:'center'}, border:allBord};
+      }
+      zatoData.forEach((zr, zi) => {
+        const r = zatoTblHdr + 1 + zi;
+        const pctZ = Math.round(zr.dev * 100);
+        const bgRgb = zi%2===0?'FFFFFF':'F2F3F4';
+        for (let c=0; c<5; c++) {
+          const addr = XLSX.utils.encode_cell({r, c});
+          if (!ws1[addr]) ws1[addr] = {v:'', t:'s'};
+          let fontColor = '000000'; let bold=false;
+          if (c===3){bold=true; fontColor = pctZ>20?'C00000':pctZ>10?'C07000':'1E7B1E';}
+          ws1[addr].s = {font:{sz:11, color:{rgb:fontColor}, bold}, fill:{fgColor:{rgb:bgRgb}},
+            alignment:{horizontal:c===0?'left':'center', vertical:'center'}, border:allBord};
+        }
+      });
+    }
+
     XLSX.utils.book_append_sheet(wb, ws1, 'Сводная');
 
     // ── Sheet 2: Детализация — fetch raw rows from API ──
