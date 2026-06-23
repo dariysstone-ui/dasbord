@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Отклонение от метрики — Содержание территории</title>
+<title>Метрика — Содержание территории</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0f1117;--panel:#151921;--card:#1a2030;--b:#243044;--bl:#1e2d42;
-  --t:#e2eaf6;--tm:#7a90b0;--td:#4a607e;--ac:#3b82f6;--ok:#10b981;--er:#f43f5e;
-  --warn:#f59e0b;--r:10px
+  --t:#e2eaf6;--tm:#7a90b0;--td:#4a607e;--ac:#3b82f6;
+  --ok:#10b981;--warn:#f59e0b;--er:#f43f5e;--r:10px
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;padding:16px}
 .wrap{max-width:1400px;margin:0 auto}
@@ -17,99 +17,79 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .hdr h2{font-size:16px;font-weight:700}
 .badge{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.35);color:var(--ac);font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
-.fg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px}
+.fg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
 @media(max-width:700px){.fg{grid-template-columns:1fr 1fr}}
 label{display:block;margin-bottom:4px;color:var(--tm);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-input[type=date]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;outline:none;transition:border-color .2s}
-input[type=date]:focus{border-color:var(--ac)}
-.btn-group{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:12px;transition:all .2s;white-space:nowrap}
-.btn-p{background:var(--ac);color:white}.btn-p:hover{background:#2563eb}
-.btn-w{background:rgba(59,130,246,.15);color:var(--ac);border:1px solid rgba(59,130,246,.3)}.btn-w.active,.btn-w:hover{background:var(--ac);color:white;border-color:var(--ac)}
-.btn-m{background:rgba(16,185,129,.15);color:var(--ok);border:1px solid rgba(16,185,129,.3)}.btn-m.active,.btn-m:hover{background:var(--ok);color:white;border-color:var(--ok)}
-.btn-d{background:rgba(245,158,11,.15);color:var(--warn);border:1px solid rgba(245,158,11,.3)}.btn-d.active,.btn-d:hover{background:var(--warn);color:white;border-color:var(--warn)}
+input[type=date],input[type=text]{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;outline:none;transition:border-color .2s}
+input[type=date]:focus,input[type=text]:focus{border-color:var(--ac)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;white-space:nowrap;background:var(--ac);color:white}
+.btn:hover{background:#2563eb}
 .btn:disabled{opacity:.4;cursor:not-allowed}
-.info{font-size:11px;color:var(--tm);padding:6px 0;min-height:20px}
+.info{font-size:12px;color:var(--tm);padding:6px 0;min-height:20px}
 .info.ok{color:var(--ok)}.info.err{color:var(--er)}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-
+.sum-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:900px){.sum-cards{grid-template-columns:repeat(2,1fr)}}
+.sc{background:var(--card);border:1px solid var(--b);border-radius:8px;padding:12px 14px}
+.sc-v{font-size:24px;font-weight:800;line-height:1}
+.sc-l{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.4px;margin-top:5px}
+/* Method explanation box */
+.method{background:var(--card);border:1px solid var(--bl);border-left:3px solid var(--ac);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:var(--tm);line-height:1.7}
+.method b{color:var(--t)}
+.method .formula{background:var(--panel);border:1px solid var(--b);border-radius:6px;padding:8px 12px;margin:8px 0;font-family:monospace;font-size:11px;color:#a5d8ff}
 /* Table */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{background:var(--card);padding:8px 10px;font-weight:600;color:var(--tm);text-align:left;border-bottom:2px solid var(--b);white-space:nowrap;cursor:pointer;user-select:none}
+th{background:var(--card);padding:8px 10px;font-weight:600;color:var(--tm);text-align:left;border-bottom:2px solid var(--b);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:1}
 th:hover{color:var(--t)}
-th.sort-asc::after{content:' ▲'}
-th.sort-desc::after{content:' ▼'}
+th.asc::after{content:' ▲'}th.desc::after{content:' ▼'}
 td{padding:7px 10px;border-bottom:1px solid var(--bl);vertical-align:middle}
 tr:hover td{background:rgba(59,130,246,.04)}
-.omsu-name{font-weight:600}
-.metric{color:var(--tm)}
-.actual{font-weight:700}
-.dev{font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap}
-.dev.green{background:rgba(16,185,129,.2);color:#34d399}
-.dev.yellow{background:rgba(245,158,11,.2);color:#fbbf24}
-.dev.red{background:rgba(244,63,94,.2);color:#f87171}
-.dev.under{background:rgba(16,185,129,.2);color:#34d399}
-.bar-wrap{width:120px;height:8px;background:var(--bl);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}
-.bar-fill{height:100%;border-radius:4px;transition:width .3s}
-.bar-green{background:var(--ok)}
-.bar-yellow{background:var(--warn)}
-.bar-red{background:var(--er)}
-.bar-under{background:var(--ok)}
-.summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-@media(max-width:900px){.summary-cards{grid-template-columns:repeat(2,1fr)}}
-.sc{background:var(--card);border:1px solid var(--b);border-radius:8px;padding:12px 14px}
-.sc-val{font-size:22px;font-weight:800;color:var(--ac);line-height:1}
-.sc-lbl{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.4px;margin-top:4px}
-.method-box{background:var(--card);border:1px solid var(--bl);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--tm);line-height:1.6;margin-bottom:12px}
-.method-box b{color:var(--t)}
+.n{font-weight:700}
+.dim{color:var(--tm)}
+.chip{font-weight:700;padding:3px 8px;border-radius:4px;font-size:11px;white-space:nowrap;display:inline-block}
+.chip-g{background:rgba(16,185,129,.18);color:#34d399}
+.chip-y{background:rgba(245,158,11,.18);color:#fbbf24}
+.chip-r{background:rgba(244,63,94,.18);color:#f87171}
+.bar-w{width:100px;height:7px;background:var(--bl);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}
+.bar-f{height:100%;border-radius:4px}
+.bar-g{background:var(--ok)}.bar-y{background:var(--warn)}.bar-r{background:var(--er)}
+.tbl-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.tbl-title{font-weight:600;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.pill-g{background:rgba(16,185,129,.15);color:var(--ok)}
+.pill-y{background:rgba(245,158,11,.15);color:var(--warn)}
+.pill-r{background:rgba(244,63,94,.15);color:var(--er)}
 </style>
 </head>
 <body>
 <div class="wrap">
+
 <div class="panel">
   <div class="hdr">
     <h2>📐 Отклонение от метрики</h2>
     <span class="badge">Содержание территории</span>
   </div>
-
   <div class="fg">
     <div><label>Период: с</label><input type="date" id="dateFrom"></div>
     <div><label>Период: по</label><input type="date" id="dateTo"></div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <label>URL API</label>
-      <input type="date" id="_unused" style="display:none">
-      <input type="text" id="apiUrl" value="/api" style="width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:12px;outline:none" placeholder="https://dasbord-ashen.vercel.app/api">
-    </div>
+    <div><label>URL API</label><input type="text" id="apiUrl" value="/api" placeholder="https://dasbord-ashen.vercel.app/api"></div>
   </div>
-
-  <div style="margin-bottom:10px">
-    <label style="margin-bottom:6px">Способ расчёта метрики:</label>
-    <div class="btn-group">
-      <button class="btn btn-w active" id="mode-week" onclick="setMode('week')">📅 По недельному показателю</button>
-      <button class="btn btn-m" id="mode-month" onclick="setMode('month')">📆 По месячному показателю</button>
-      <button class="btn btn-d" id="mode-period" onclick="setMode('period')">🗓️ По показателю периода</button>
-    </div>
-  </div>
-
-  <div class="method-box" id="method-desc"></div>
-
-  <div class="btn-group">
-    <button class="btn btn-p" id="genBtn" onclick="generate()">🚀 Сформировать</button>
-  </div>
+  <button class="btn" id="genBtn" onclick="generate()">🚀 Сформировать</button>
   <div class="info" id="info"></div>
 </div>
 
 <div id="result" style="display:none">
-  <div class="summary-cards" id="summary"></div>
+  <div class="sum-cards" id="summary"></div>
+  <div class="method" id="method-box"></div>
   <div class="panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:13px;font-weight:600" id="tbl-title"></div>
-      <input type="text" id="search" placeholder="🔍 Поиск ОМСУ..." oninput="filterTable()" style="padding:7px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:12px;outline:none;width:200px">
+    <div class="tbl-hdr">
+      <div class="tbl-title" id="tbl-title"></div>
+      <input type="text" id="search" placeholder="🔍 Поиск ОМСУ..." oninput="renderTable()" style="width:200px;padding:7px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:12px;outline:none">
     </div>
     <div class="tbl-wrap">
-      <table id="tbl">
+      <table>
         <thead><tr>
           <th onclick="sortBy('rank')">#</th>
           <th onclick="sortBy('omsu')">ОМСУ</th>
@@ -117,216 +97,138 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <th onclick="sortBy('actual')">Факт</th>
           <th onclick="sortBy('dev')">Отклонение</th>
           <th>Загрузка</th>
+          <th onclick="sortBy('method')" style="font-size:10px">Метод расчёта</th>
         </tr></thead>
         <tbody id="tbl-body"></tbody>
       </table>
     </div>
   </div>
-</div>
-</div>
+  <!-- ЗАТО table -->
+  <div class="panel" id="zato-section" style="display:none;margin-top:0">
+    <div style="background:#1e2d42;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-weight:700;font-size:13px">
+      Закрытые административно-территориальные образования (ЗАТО)
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>ОМСУ</th>
+          <th>Метрика</th>
+          <th>Факт</th>
+          <th>Отклонение</th>
+          <th style="font-size:10px">Метод расчёта</th>
+        </tr></thead>
+        <tbody id="zato-body"></tbody>
+      </table>
+    </div>
+  </div>
 
+</div>
 <script>
 // ═══════════════════════════════════════════════════════
-// METRIC DATA — embedded from PPTX
+// МЕТРИКА ПО МЕСЯЦАМ (из файла метрика_по_месяцам.xlsx)
+// Ключи: русские названия месяцев строчными буквами
 // ═══════════════════════════════════════════════════════
-const WEEKLY = {
-  "Балашиха":{"Июнь":478,"Июль":414,"Август":416},
-  "Богородский":{"Июнь":158,"Июль":151,"Август":138},
-  "Бронницы":{"Июнь":13,"Июль":12,"Август":10},
-  "Волоколамский":{"Июнь":36,"Июль":41,"Август":32},
-  "Воскресенск":{"Июнь":172,"Июль":147,"Август":139},
-  "Дмитровский":{"Июнь":125,"Июль":112,"Август":89},
-  "Долгопрудный":{"Июнь":113,"Июль":102,"Август":94},
-  "Домодедово":{"Июнь":153,"Июль":151,"Август":140},
-  "Дубна":{"Июнь":40,"Июль":44,"Август":35},
-  "Егорьевск":{"Июнь":46,"Июль":47,"Август":41},
-  "Жуковский":{"Июнь":114,"Июль":108,"Август":85},
-  "Зарайск":{"Июнь":15,"Июль":12,"Август":10},
-  "Истра":{"Июнь":118,"Июль":112,"Август":95},
-  "Кашира":{"Июнь":51,"Июль":56,"Август":48},
-  "Клин":{"Июнь":87,"Июль":81,"Август":60},
-  "Коломна":{"Июнь":227,"Июль":207,"Август":185},
-  "Королёв":{"Июнь":275,"Июль":244,"Август":216},
-  "Котельники":{"Июнь":39,"Июль":41,"Август":39},
-  "Красногорск":{"Июнь":356,"Июль":340,"Август":329},
-  "Ленинский":{"Июнь":235,"Июль":231,"Август":201},
-  "Лобня":{"Июнь":148,"Июль":130,"Август":114},
-  "Лосино-Петровский":{"Июнь":75,"Июль":56,"Август":50},
-  "Лотошино":{"Июнь":12,"Июль":10,"Август":8},
-  "Луховицы":{"Июнь":32,"Июль":36,"Август":35},
-  "Лыткарино":{"Июнь":35,"Июль":38,"Август":36},
-  "Люберцы":{"Июнь":408,"Июль":422,"Август":383},
-  "Можайский":{"Июнь":43,"Июль":40,"Август":42},
-  "Мытищи":{"Июнь":344,"Июль":337,"Август":293},
-  "Наро-Фоминский":{"Июнь":142,"Июль":136,"Август":122},
-  "Одинцовский":{"Июнь":516,"Июль":447,"Август":411},
-  "Орехово-Зуевский":{"Июнь":103,"Июль":91,"Август":73},
-  "Павлово-Посадский":{"Июнь":55,"Июль":49,"Август":49},
-  "Подольск":{"Июнь":449,"Июль":436,"Август":343},
-  "Пушкинский":{"Июнь":329,"Июль":302,"Август":261},
-  "Раменский":{"Июнь":167,"Июль":168,"Август":156},
-  "Реутов":{"Июнь":105,"Июль":108,"Август":89},
-  "Рузский":{"Июнь":45,"Июль":42,"Август":34},
-  "Сергиево-Посадский":{"Июнь":178,"Июль":154,"Август":120},
-  "Серебряные Пруды":{"Июнь":6,"Июль":6,"Август":3},
-  "Серпухов":{"Июнь":158,"Июль":145,"Август":111},
-  "Солнечногорск":{"Июнь":184,"Июль":185,"Август":157},
-  "Ступино":{"Июнь":77,"Июль":72,"Август":55},
-  "Талдомский":{"Июнь":16,"Июль":13,"Август":10},
-  "Фрязино":{"Июнь":60,"Июль":51,"Август":54},
-  "Химки":{"Июнь":434,"Июль":444,"Август":413},
-  "Черноголовка":{"Июнь":11,"Июль":10,"Август":9},
-  "Чехов":{"Июнь":115,"Июль":105,"Август":90},
-  "Шатура":{"Июнь":40,"Июль":45,"Август":33},
-  "Шаховская":{"Июнь":7,"Июль":8,"Август":7},
-  "Щелково":{"Июнь":162,"Июль":133,"Август":109},
-  "Электросталь":{"Июнь":141,"Июль":138,"Август":119},
-  "Власиха":{"Июнь":12,"Июль":11,"Август":10},
-  "Восход":{"Июнь":1,"Июль":0,"Август":0},
-  "Звездный городок":{"Июнь":1,"Июль":2,"Август":1},
-  "Краснознаменск":{"Июнь":21,"Июль":23,"Август":20},
-  "Молодежный":{"Июнь":2,"Июль":2,"Август":1}
-};
+const METRICS = {"Балашиха":{"январь":529,"февраль":480,"март":1369,"апрель":2510,"май":2281,"июнь":2070,"июль":1790,"август":1802,"сентябрь":1666,"октябрь":1194,"ноябрь":942,"декабрь":509},"Богородский":{"январь":122,"февраль":128,"март":380,"апрель":724,"май":632,"июнь":684,"июль":655,"август":596,"сентябрь":455,"октябрь":437,"ноябрь":416,"декабрь":169},"Бронницы":{"январь":7,"февраль":6,"март":19,"апрель":40,"май":39,"июнь":56,"июль":51,"август":45,"сентябрь":34,"октябрь":24,"ноябрь":24,"декабрь":11},"Власиха":{"январь":22,"февраль":22,"март":29,"апрель":61,"май":55,"июнь":50,"июль":49,"август":42,"сентябрь":33,"октябрь":26,"ноябрь":29,"декабрь":24},"Волоколамский":{"январь":20,"февраль":25,"март":68,"апрель":131,"май":140,"июнь":154,"июль":176,"август":138,"сентябрь":103,"октябрь":85,"ноябрь":47,"декабрь":26},"Воскресенск":{"январь":100,"февраль":91,"март":255,"апрель":511,"май":561,"июнь":746,"июль":638,"август":600,"сентябрь":478,"октябрь":374,"ноябрь":247,"декабрь":117},"Восход":{"январь":0,"февраль":0,"март":0,"апрель":0,"май":1,"июнь":3,"июль":0,"август":0,"сентябрь":0,"октябрь":1,"ноябрь":0,"декабрь":0},"Дмитровский":{"январь":87,"февраль":111,"март":330,"апрель":518,"май":518,"июнь":540,"июль":484,"август":387,"сентябрь":325,"октябрь":251,"ноябрь":190,"декабрь":105},"Долгопрудный":{"январь":133,"февраль":144,"март":387,"апрель":629,"май":617,"июнь":488,"июль":442,"август":407,"сентябрь":367,"октябрь":299,"ноябрь":239,"декабрь":182},"Домодедово":{"январь":148,"февраль":127,"март":334,"апрель":651,"май":579,"июнь":663,"июль":653,"август":608,"сентябрь":582,"октябрь":486,"ноябрь":300,"декабрь":182},"Дубна":{"январь":46,"февраль":43,"март":95,"апрель":163,"май":167,"июнь":173,"июль":191,"август":150,"сентябрь":136,"октябрь":110,"ноябрь":99,"декабрь":42},"Егорьевск":{"январь":32,"февраль":32,"март":98,"апрель":176,"май":170,"июнь":201,"июль":204,"август":176,"сентябрь":133,"октябрь":129,"ноябрь":82,"декабрь":33},"Жуковский":{"январь":94,"февраль":118,"март":284,"апрель":563,"май":417,"июнь":492,"июль":465,"август":368,"сентябрь":361,"октябрь":327,"ноябрь":266,"декабрь":126},"Зарайск":{"январь":9,"февраль":10,"март":19,"апрель":45,"май":64,"июнь":63,"июль":51,"август":42,"сентябрь":37,"октябрь":35,"ноябрь":22,"декабрь":12},"Звездный городок":{"январь":2,"февраль":3,"март":3,"апрель":2,"май":4,"июнь":5,"июль":6,"август":5,"сентябрь":5,"октябрь":6,"ноябрь":4,"декабрь":3},"Истра":{"январь":85,"февраль":79,"март":265,"апрель":566,"май":583,"июнь":512,"июль":484,"август":412,"сентябрь":347,"октябрь":253,"ноябрь":192,"декабрь":102},"Кашира":{"январь":54,"февраль":36,"март":86,"апрель":169,"май":197,"июнь":221,"июль":244,"август":208,"сентябрь":152,"октябрь":111,"ноябрь":88,"декабрь":37},"Клин":{"январь":45,"февраль":42,"март":153,"апрель":283,"май":270,"июнь":376,"июль":352,"август":259,"сентябрь":201,"октябрь":140,"ноябрь":100,"декабрь":50},"Коломна":{"январь":129,"февраль":96,"март":363,"апрель":774,"май":728,"июнь":981,"июль":898,"август":801,"сентябрь":581,"октябрь":431,"ноябрь":465,"декабрь":152},"Королёв":{"январь":269,"февраль":254,"март":792,"апрель":1700,"май":1385,"июнь":1191,"июль":1055,"август":934,"сентябрь":845,"октябрь":649,"ноябрь":525,"декабрь":282},"Котельники":{"январь":55,"февраль":57,"март":176,"апрель":225,"май":189,"июнь":168,"июль":178,"август":168,"сентябрь":156,"октябрь":107,"ноябрь":109,"декабрь":75},"Красногорск":{"январь":494,"февраль":471,"март":1283,"апрель":2266,"май":1910,"июнь":1540,"июль":1474,"август":1424,"сентябрь":1304,"октябрь":1052,"ноябрь":893,"декабрь":546},"Краснознаменск":{"январь":19,"февраль":22,"март":51,"апрель":92,"май":82,"июнь":91,"июль":101,"август":88,"сентябрь":68,"октябрь":64,"ноябрь":46,"декабрь":22},"Ленинский":{"январь":331,"февраль":314,"март":913,"апрель":1327,"май":1234,"июнь":1018,"июль":999,"август":869,"сентябрь":956,"октябрь":721,"ноябрь":544,"декабрь":378},"Лобня":{"январь":198,"февраль":198,"март":524,"апрель":788,"май":779,"июнь":642,"июль":561,"август":492,"сентябрь":425,"октябрь":368,"ноябрь":356,"декабрь":197},"Лосино-Петровский":{"январь":38,"февраль":44,"март":133,"апрель":264,"май":267,"июнь":323,"июль":243,"август":215,"сентябрь":168,"октябрь":121,"ноябрь":81,"декабрь":51},"Лотошино":{"январь":4,"февраль":10,"март":17,"апрель":32,"май":44,"июнь":50,"июль":44,"август":37,"сентябрь":23,"октябрь":22,"ноябрь":17,"декабрь":11},"Луховицы":{"январь":26,"февраль":21,"март":61,"апрель":117,"май":162,"июнь":140,"июль":154,"август":151,"сентябрь":108,"октябрь":96,"ноябрь":67,"декабрь":37},"Лыткарино":{"январь":35,"февраль":32,"март":121,"апрель":183,"май":140,"июнь":153,"июль":164,"август":155,"сентябрь":145,"октябрь":139,"ноябрь":79,"декабрь":57},"Люберцы":{"январь":468,"февраль":493,"март":1325,"апрель":2167,"май":1933,"июнь":1769,"июль":1828,"август":1658,"сентябрь":1642,"октябрь":1455,"ноябрь":1013,"декабрь":576},"Можайский":{"январь":25,"февраль":31,"март":93,"апрель":197,"май":177,"июнь":185,"июль":171,"август":181,"сентябрь":122,"октябрь":88,"ноябрь":80,"декабрь":28},"Молодежный":{"январь":0,"февраль":1,"март":5,"апрель":3,"май":2,"июнь":7,"июль":7,"август":6,"сентябрь":4,"октябрь":1,"ноябрь":8,"декабрь":2},"Мытищи":{"январь":401,"февраль":370,"март":1049,"апрель":1632,"май":1511,"июнь":1488,"июль":1459,"август":1270,"сентябрь":1108,"октябрь":838,"ноябрь":726,"декабрь":407},"Наро-Фоминский":{"январь":122,"февраль":112,"март":341,"апрель":663,"май":636,"июнь":616,"июль":588,"август":528,"сентябрь":490,"октябрь":357,"ноябрь":253,"декабрь":160},"Одинцовский":{"январь":615,"февраль":590,"март":1611,"апрель":2567,"май":2297,"июнь":2234,"июль":1935,"август":1781,"сентябрь":1729,"октябрь":1269,"ноябрь":973,"декабрь":653},"Орехово-Зуевский":{"январь":74,"февраль":77,"март":210,"апрель":392,"май":384,"июнь":445,"июль":392,"август":317,"сентябрь":254,"октябрь":206,"ноябрь":142,"декабрь":80},"Павлово-Посадский":{"январь":43,"февраль":44,"март":125,"апрель":236,"май":224,"июнь":240,"июль":210,"август":213,"сентябрь":124,"октябрь":117,"ноябрь":85,"декабрь":45},"Подольск":{"январь":553,"февраль":426,"март":1167,"апрель":1973,"май":1749,"июнь":1944,"июль":1888,"август":1484,"сентябрь":1324,"октябрь":1071,"ноябрь":776,"декабрь":452},"Пушкинский":{"январь":200,"февраль":198,"март":688,"апрель":1387,"май":1291,"июнь":1425,"июль":1309,"август":1128,"сентябрь":996,"октябрь":765,"ноябрь":729,"декабрь":231},"Раменский":{"январь":135,"февраль":136,"март":523,"апрель":777,"май":750,"июнь":721,"июль":727,"август":674,"сентябрь":558,"октябрь":408,"ноябрь":277,"декабрь":142},"Реутов":{"январь":162,"февраль":148,"март":415,"апрель":695,"май":617,"июнь":455,"июль":470,"август":387,"сентябрь":361,"октябрь":267,"ноябрь":261,"декабрь":143},"Рузский":{"январь":25,"февраль":18,"март":70,"апрель":161,"май":190,"июнь":197,"июль":181,"август":148,"сентябрь":125,"октябрь":88,"ноябрь":49,"декабрь":33},"Сергиево-Посадский":{"январь":93,"февраль":115,"март":355,"апрель":706,"май":805,"июнь":769,"июль":669,"август":518,"сентябрь":441,"октябрь":341,"ноябрь":208,"декабрь":124},"Серебряные Пруды":{"январь":4,"февраль":3,"март":9,"апрель":22,"май":25,"июнь":25,"июль":26,"август":14,"сентябрь":13,"октябрь":7,"ноябрь":5,"декабрь":4},"Серпухов":{"январь":97,"февраль":78,"март":319,"апрель":526,"май":553,"июнь":685,"июль":627,"август":482,"сентябрь":429,"октябрь":382,"ноябрь":262,"декабрь":132},"Солнечногорск":{"январь":158,"февраль":136,"март":455,"апрель":820,"май":802,"июнь":795,"июль":801,"август":679,"сентябрь":531,"октябрь":388,"ноябрь":320,"декабрь":150},"Ступино":{"январь":48,"февраль":54,"март":145,"апрель":280,"май":292,"июнь":335,"июль":312,"август":239,"сентябрь":213,"октябрь":145,"ноябрь":110,"декабрь":55},"Талдомский":{"январь":10,"февраль":13,"март":33,"апрель":44,"май":48,"июнь":71,"июль":55,"август":45,"сентябрь":45,"октябрь":30,"ноябрь":32,"декабрь":10},"Фрязино":{"январь":41,"февраль":47,"март":126,"апрель":289,"май":264,"июнь":258,"июль":219,"август":233,"сентябрь":221,"октябрь":187,"ноябрь":142,"декабрь":73},"Химки":{"январь":425,"февраль":385,"март":1085,"апрель":2231,"май":1925,"июнь":1878,"июль":1922,"август":1787,"сентябрь":1697,"октябрь":1157,"ноябрь":905,"декабрь":564},"Черноголовка":{"январь":12,"февраль":7,"март":30,"апрель":43,"май":50,"июнь":46,"июль":43,"август":39,"сентябрь":23,"октябрь":21,"ноябрь":11,"декабрь":8},"Чехов":{"январь":116,"февраль":97,"март":310,"апрель":602,"май":503,"июнь":497,"июль":455,"август":390,"сентябрь":321,"октябрь":274,"ноябрь":189,"декабрь":83},"Шатура":{"январь":22,"февраль":19,"март":86,"апрель":121,"май":149,"июнь":175,"июль":193,"август":144,"сентябрь":99,"октябрь":81,"ноябрь":50,"декабрь":20},"Шаховская":{"январь":5,"февраль":3,"март":9,"апрель":22,"май":30,"июнь":32,"июль":35,"август":30,"сентябрь":26,"октябрь":16,"ноябрь":11,"декабрь":6},"Щелково":{"январь":115,"февраль":120,"март":397,"апрель":852,"май":734,"июнь":703,"июль":575,"август":471,"сентябрь":454,"октябрь":396,"ноябрь":488,"декабрь":154},"Электросталь":{"январь":97,"февраль":107,"март":405,"апрель":730,"май":660,"июнь":610,"июль":597,"август":514,"сентябрь":402,"октябрь":398,"ноябрь":292,"декабрь":104}};
 
-const MONTHLY = {
-  "Балашиха":{"Июнь":2070,"Июль":1793,"Август":1801},
-  "Богородский":{"Июнь":684,"Июль":654,"Август":598},
-  "Бронницы":{"Июнь":56,"Июль":52,"Август":43},
-  "Волоколамский":{"Июнь":156,"Июль":178,"Август":139},
-  "Воскресенск":{"Июнь":745,"Июль":637,"Август":602},
-  "Дмитровский":{"Июнь":541,"Июль":485,"Август":385},
-  "Долгопрудный":{"Июнь":489,"Июль":442,"Август":407},
-  "Домодедово":{"Июнь":662,"Июль":654,"Август":606},
-  "Дубна":{"Июнь":173,"Июль":191,"Август":152},
-  "Егорьевск":{"Июнь":199,"Июль":204,"Август":178},
-  "Жуковский":{"Июнь":494,"Июль":468,"Август":368},
-  "Зарайск":{"Июнь":65,"Июль":52,"Август":43},
-  "Истра":{"Июнь":511,"Июль":485,"Август":411},
-  "Кашира":{"Июнь":221,"Июль":242,"Август":208},
-  "Клин":{"Июнь":377,"Июль":351,"Август":260},
-  "Коломна":{"Июнь":983,"Июль":896,"Август":801},
-  "Королёв":{"Июнь":1191,"Июль":1057,"Август":935},
-  "Котельники":{"Июнь":169,"Июль":178,"Август":169},
-  "Красногорск":{"Июнь":1541,"Июль":1472,"Август":1425},
-  "Ленинский":{"Июнь":1018,"Июль":1000,"Август":870},
-  "Лобня":{"Июнь":641,"Июль":563,"Август":494},
-  "Лосино-Петровский":{"Июнь":325,"Июль":242,"Август":216},
-  "Лотошино":{"Июнь":52,"Июль":43,"Август":35},
-  "Луховицы":{"Июнь":139,"Июль":156,"Август":152},
-  "Лыткарино":{"Июнь":152,"Июль":165,"Август":156},
-  "Люберцы":{"Июнь":1767,"Июль":1827,"Август":1658},
-  "Можайский":{"Июнь":186,"Июль":173,"Август":182},
-  "Мытищи":{"Июнь":1490,"Июль":1459,"Август":1269},
-  "Наро-Фоминский":{"Июнь":615,"Июль":589,"Август":528},
-  "Одинцовский":{"Июнь":2234,"Июль":1936,"Август":1780},
-  "Орехово-Зуевский":{"Июнь":446,"Июль":394,"Август":316},
-  "Павлово-Посадский":{"Июнь":238,"Июль":212,"Август":212},
-  "Подольск":{"Июнь":1944,"Июль":1888,"Август":1485},
-  "Пушкинский":{"Июнь":1425,"Июль":1308,"Август":1130},
-  "Раменский":{"Июнь":723,"Июль":727,"Август":675},
-  "Реутов":{"Июнь":455,"Июль":468,"Август":385},
-  "Рузский":{"Июнь":195,"Июль":182,"Август":147},
-  "Сергиево-Посадский":{"Июнь":771,"Июль":667,"Август":520},
-  "Серебряные Пруды":{"Июнь":26,"Июль":26,"Август":13},
-  "Серпухов":{"Июнь":684,"Июль":628,"Август":481},
-  "Солнечногорск":{"Июнь":797,"Июль":801,"Август":680},
-  "Ступино":{"Июнь":333,"Июль":312,"Август":238},
-  "Талдомский":{"Июнь":69,"Июль":56,"Август":43},
-  "Фрязино":{"Июнь":260,"Июль":221,"Август":234},
-  "Химки":{"Июнь":1879,"Июль":1923,"Август":1788},
-  "Черноголовка":{"Июнь":48,"Июль":43,"Август":39},
-  "Чехов":{"Июнь":498,"Июль":455,"Август":390},
-  "Шатура":{"Июнь":173,"Июль":195,"Август":143},
-  "Шаховская":{"Июнь":30,"Июль":35,"Август":30},
-  "Щелково":{"Июнь":701,"Июль":576,"Август":472},
-  "Электросталь":{"Июнь":611,"Июль":598,"Август":515},
-  "Власиха":{"Июнь":52,"Июль":48,"Август":43},
-  "Восход":{"Июнь":4,"Июль":0,"Август":0},
-  "Звездный городок":{"Июнь":4,"Июль":9,"Август":4},
-  "Краснознаменск":{"Июнь":91,"Июль":100,"Август":87},
-  "Молодежный":{"Июнь":9,"Июль":9,"Август":4}
-};
+const MONTH_IDX  = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const ZATO = new Set(['Восход','Молодежный','Краснознаменск','Власиха','Звездный городок']);
+const MONTH_DAYS = [31,28,31,30,31,30,31,31,30,31,30,31];
+const MONTH_RU   = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 
-const MONTH_NAMES = {5:'Май',6:'Июнь',7:'Июль',8:'Август'};
-const DAYS_IN_MONTH = {5:31,6:30,7:31,8:31};
+// ═══════════════════════════════════════════════════════
+// METRIC CALCULATION — universal for any period
+// Logic:
+//   daily_norm(omsu, date) = monthly_metric / days_in_month
+//   metric(period) = sum of daily_norm for each day in period
+//
+// Special cases:
+//   - Exactly 7 days inside one month  → weekly_norm = monthly / 4.33
+//   - Full calendar month               → monthly metric directly
+//   - Multi-month: each day uses its own month's daily norm
+// ═══════════════════════════════════════════════════════
+function calcMetric(omsu, fromStr, toStr) {
+  const m = METRICS[omsu];
+  if (!m) return { metric: null, method: 'нет данных', detail: [] };
+
+  const from = new Date(fromStr + 'T00:00:00');
+  const to   = new Date(toStr   + 'T00:00:00');
+  const days = Math.round((to - from) / 86400000) + 1;
+
+  const fromM = from.getMonth(); // 0-based
+  const toM   = to.getMonth();
+  const fromY = from.getFullYear();
+  const toY   = to.getFullYear();
+
+  const monthsInPeriod = [];
+  const cur = new Date(from);
+  const seen = new Set();
+  while (cur <= to) {
+    const k = `${cur.getFullYear()}-${cur.getMonth()}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      monthsInPeriod.push({ y: cur.getFullYear(), m: cur.getMonth() });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  const detail = [];
+  let totalMetric = 0;
+  let methodLabel = '';
+
+  if (monthsInPeriod.length === 1) {
+    // Single month period
+    const mo = MONTH_IDX[fromM];
+    const monthMetric = m[mo] || 0;
+    const daysInMonth = MONTH_DAYS[fromM];
+
+    if (days === daysInMonth && fromM === toM) {
+      // Full calendar month
+      totalMetric = monthMetric;
+      methodLabel = 'полный месяц';
+      detail.push(`Полный ${mo}: метрика ${fmt(monthMetric)}`);
+    } else if (days === 7) {
+      // Exactly one week inside one month
+      const weeklyNorm = Math.round(monthMetric / 4.33);
+      totalMetric = weeklyNorm;
+      methodLabel = 'недельный показатель';
+      detail.push(`${mo}: ${fmt(monthMetric)} / 4,33 = ${fmt(weeklyNorm)} (на 7 дней)`);
+    } else {
+      // N days inside one month: daily = monthly/days_in_month
+      const dailyNorm = monthMetric / daysInMonth;
+      totalMetric = Math.round(dailyNorm * days);
+      methodLabel = `дневная норма × ${days} дн.`;
+      detail.push(`${mo}: ${fmt(monthMetric)} / ${daysInMonth} дн. × ${days} = ${fmt(totalMetric)}`);
+    }
+  } else {
+    // Multi-month period — sum daily norms per month
+    methodLabel = 'пропорционально по месяцам';
+    for (const { y, m: mi } of monthsInPeriod) {
+      const mo = MONTH_IDX[mi];
+      const monthMetric = METRICS[omsu][mo] || 0;
+      const daysInMonth = MONTH_DAYS[mi];
+
+      // Count days of this month inside the period
+      const mStart = new Date(y, mi, 1);
+      const mEnd   = new Date(y, mi + 1, 0);
+      const periodStart = mStart > from ? mStart : from;
+      const periodEnd   = mEnd   < to   ? mEnd   : to;
+      const daysInPeriod = Math.round((periodEnd - periodStart) / 86400000) + 1;
+
+      const contribution = Math.round((monthMetric / daysInMonth) * daysInPeriod);
+      totalMetric += contribution;
+      detail.push(`${mo} (${daysInPeriod} из ${daysInMonth} дн.): ${fmt(monthMetric)} / ${daysInMonth} × ${daysInPeriod} = ${fmt(contribution)}`);
+    }
+  }
+
+  return { metric: totalMetric, method: methodLabel, detail };
+}
 
 // ═══════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════
-let currentMode = 'week';
 let tableData = [];
+let zatoData  = [];
 let sortCol = 'dev', sortDir = 1;
-
-// ═══════════════════════════════════════════════════════
-// MODE
-// ═══════════════════════════════════════════════════════
-const METHOD_DESC = {
-  week: '<b>Недельный показатель:</b> метрика = нормативное значение жалоб за неделю для каждого ОМСУ (из плановых показателей июнь–август 2026). Используйте для анализа периода ~7 дней.',
-  month: '<b>Месячный показатель:</b> метрика = нормативное значение жалоб за полный месяц. Используйте для анализа периода ~30 дней.',
-  period: '<b>По показателю периода:</b> метрика рассчитывается пропорционально длине периода. Для каждого дня периода берётся дневная норма (= недельная ÷ 7), суммируется за все дни. При попадании в разные месяцы — используются нормы соответствующих месяцев. Подходит для любого произвольного периода.'
-};
-
-function setMode(m) {
-  currentMode = m;
-  ['week','month','period'].forEach(x => {
-    document.getElementById('mode-'+x).classList.toggle('active', x===m);
-  });
-  document.getElementById('method-desc').innerHTML = METHOD_DESC[m];
-}
-setMode('week');
-
-// ═══════════════════════════════════════════════════════
-// METRIC CALCULATION
-// ═══════════════════════════════════════════════════════
-function getMonthName(monthNum) { return MONTH_NAMES[monthNum] || null; }
-
-function calcMetric(omsu, fromStr, toStr, mode) {
-  const from = new Date(fromStr), to = new Date(toStr);
-  const mn = getMonthName(from.getMonth()+1);
-
-  if (mode === 'week') {
-    // Sum daily norms (weekly/7) for each day — handles different monthly norms correctly
-    if (!WEEKLY[omsu]) return null;
-    let total = 0, valid = false;
-    const cur = new Date(from);
-    while (cur <= to) {
-      const mn2 = getMonthName(cur.getMonth()+1);
-      const weeklyNorm = mn2 && WEEKLY[omsu][mn2] ? WEEKLY[omsu][mn2] : null;
-      if (weeklyNorm !== null) { total += weeklyNorm / 7; valid = true; }
-      cur.setDate(cur.getDate()+1);
-    }
-    return valid ? Math.round(total) : null;
-  }
-  if (mode === 'month') {
-    // Sum daily norms (monthly/days_in_month) for each day
-    if (!MONTHLY[omsu]) return null;
-    let total = 0, valid = false;
-    const cur = new Date(from);
-    while (cur <= to) {
-      const m = cur.getMonth()+1;
-      const mn2 = getMonthName(m);
-      const monthlyNorm = mn2 && MONTHLY[omsu][mn2] ? MONTHLY[omsu][mn2] : null;
-      if (monthlyNorm !== null) {
-        total += monthlyNorm / (DAYS_IN_MONTH[m] || 30);
-        valid = true;
-      }
-      cur.setDate(cur.getDate()+1);
-    }
-    return valid ? Math.round(total) : null;
-  }
-  // mode === 'period': sum daily norms (weekly/7) for each day
-  if (!WEEKLY[omsu]) return null;
-  let total = 0;
-  const cur = new Date(from);
-  while (cur <= to) {
-    const mn2 = getMonthName(cur.getMonth()+1);
-    const weeklyNorm = mn2 && WEEKLY[omsu][mn2] ? WEEKLY[omsu][mn2] : null;
-    if (weeklyNorm === null) { cur.setDate(cur.getDate()+1); continue; }
-    total += weeklyNorm / 7;
-    cur.setDate(cur.getDate()+1);
-  }
-  return Math.round(total);
-}
 
 // ═══════════════════════════════════════════════════════
 // GENERATE
@@ -335,63 +237,67 @@ async function generate() {
   const fromStr = document.getElementById('dateFrom').value;
   const toStr   = document.getElementById('dateTo').value;
   const apiUrl  = document.getElementById('apiUrl').value.trim();
-
-  if (!fromStr || !toStr) { setInfo('Выберите даты периода','err'); return; }
-  if (new Date(fromStr) > new Date(toStr)) { setInfo('Дата начала позже даты конца','err'); return; }
+  if (!fromStr || !toStr) { setInfo('Выберите даты периода', 'err'); return; }
+  if (new Date(fromStr) > new Date(toStr)) { setInfo('Дата начала позже даты конца', 'err'); return; }
 
   const btn = document.getElementById('genBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Загрузка...';
-  setInfo('Запрос к API...','');
+  setInfo('Запрос к API...', '');
 
   try {
     const resp = await fetch(apiUrl, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         start: fromStr, end: toStr,
         compStart: fromStr, compEnd: toStr,
-        omsuFilter:[], sourceFilter:[], subFilter:[], sgFilter:['Содержание территории']
+        omsuFilter: [], sourceFilter: [], subFilter: [],
+        sgFilter: ['Содержание территории']
       })
     });
-    if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error||`HTTP ${resp.status}`); }
+    if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.error || `HTTP ${resp.status}`); }
     const json = await resp.json();
 
-    // Find Содержание территории group
     const norm = s => s.toLowerCase().replace(/ё/g,'е').trim();
-    const group = (json.data||[]).find(g => norm(g.name).includes('содержание территории'));
-    if (!group) { setInfo('Группа "Содержание территории" не найдена в данных','err'); return; }
+    const group = (json.data || []).find(g => norm(g.name).includes('содержание территории'));
+    if (!group) { setInfo('Группа "Содержание территории" не найдена', 'err'); return; }
 
-    // Build table rows from OMSU data
-    const days = Math.round((new Date(toStr)-new Date(fromStr))/86400000)+1;
+    // Actual counts by OMSU name
+    const actualMap = {};
+    (group.omsus || []).forEach(o => { actualMap[o.name] = o.count || 0; });
+
+    const days = Math.round((new Date(toStr) - new Date(fromStr)) / 86400000) + 1;
     const rows = [];
 
-    // Build actual count map from API
-    const actualMap = {};
-    (group.omsus||[]).forEach(o => { actualMap[o.name] = o.count||0; });
-
-    // For each OMSU in metric data
-    Object.keys(WEEKLY).forEach(omsu => {
-      const metric = calcMetric(omsu, fromStr, toStr, currentMode);
-      if (metric === null || metric === 0) return;
-
+    Object.keys(METRICS).forEach(omsu => {
+      const { metric, method, detail } = calcMetric(omsu, fromStr, toStr);
+      if (!metric) return;
       const actual = actualMap[omsu] || 0;
-      const dev = (actual / metric) - 1; // deviation: 0 = exact, >0 = over, <0 = under
-      rows.push({ omsu, metric, actual, dev, days });
+      const dev = metric > 0 ? (actual / metric) - 1 : 0;
+      rows.push({ omsu, metric, actual, dev, method, detail });
     });
 
-    // Sort by deviation descending (most over first)
-    rows.sort((a,b) => b.dev - a.dev);
-    rows.forEach((r,i) => r.rank = i+1);
+    // Split: ЗАТО separate from main list
+    const zatoRows = rows.filter(r => ZATO.has(r.omsu));
+    const mainRows = rows.filter(r => !ZATO.has(r.omsu));
+    mainRows.sort((a, b) => b.dev - a.dev);
+    mainRows.forEach((r, i) => r.rank = i + 1);
+    zatoRows.sort((a, b) => b.dev - a.dev);
+    zatoRows.forEach((r, i) => r.rank = i + 1);
+    tableData = mainRows;
+    zatoData  = zatoRows;
 
-    tableData = rows;
-    renderSummary(rows, days, fromStr, toStr);
-    renderTable(rows);
+    renderSummary(mainRows, days, fromStr, toStr);
+    renderMethodBox(mainRows, fromStr, toStr, days);
+    renderTable();
 
-    setInfo(`✓ Загружено ${rows.length} ОМСУ, период ${days} дн.`,'ok');
+    renderZato();
+    setInfo(`✓ ${mainRows.length} ОМСУ + ${zatoRows.length} ЗАТО, период ${days} дн.`, 'ok');
     document.getElementById('result').style.display = 'block';
 
-  } catch(err) {
-    setInfo('Ошибка: '+err.message,'err');
+  } catch (err) {
+    setInfo('Ошибка: ' + err.message, 'err');
     console.error(err);
   } finally {
     btn.disabled = false;
@@ -400,78 +306,141 @@ async function generate() {
 }
 
 // ═══════════════════════════════════════════════════════
-// RENDER
+// RENDER SUMMARY
 // ═══════════════════════════════════════════════════════
 function renderSummary(rows, days, fromStr, toStr) {
-  const over = rows.filter(r=>r.dev>0.1).length;
-  const under = rows.filter(r=>r.dev<-0.1).length;
-  const ontrack = rows.length - over - under;
-  const totalActual = rows.reduce((s,r)=>s+r.actual,0);
-  const totalMetric = rows.reduce((s,r)=>s+r.metric,0);
-  const totalDev = totalMetric>0 ? Math.round((totalActual/totalMetric-1)*100) : 0;
-
-  const modeLabel = currentMode==='week'?'неделя':currentMode==='month'?'месяц':'период';
-  const fromRu = new Date(fromStr).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
-  const toRu   = new Date(toStr).toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
-  const periodLabel = fromStr===toStr ? fromRu : `${fromRu} – ${toRu}`;
-
-  document.getElementById('tbl-title').textContent = `${periodLabel} · ${days} дн. · режим: ${modeLabel}`;
+  const red    = rows.filter(r => r.dev > 0.2).length;
+  const yellow = rows.filter(r => r.dev > 0.1 && r.dev <= 0.2).length;
+  const green  = rows.filter(r => r.dev <= 0.1).length;
+  const totalActual = rows.reduce((s,r) => s + r.actual, 0);
+  const totalMetric = rows.reduce((s,r) => s + r.metric, 0);
+  const totalDev = totalMetric > 0 ? Math.round((totalActual / totalMetric - 1) * 100) : 0;
+  const devColor = totalDev > 20 ? 'var(--er)' : totalDev > 10 ? 'var(--warn)' : 'var(--ok)';
+  const fromRu = fmtDateRu(fromStr), toRu = fmtDateRu(toStr);
+  const period = fromStr === toStr ? fromRu : `${fromRu} – ${toRu}`;
+  document.getElementById('tbl-title').textContent = `${period} · ${days} дн.`;
   document.getElementById('summary').innerHTML = `
-    <div class="sc"><div class="sc-val" style="color:var(--t)">${rows.length}</div><div class="sc-lbl">ОМСУ в расчёте</div></div>
-    <div class="sc"><div class="sc-val" style="color:var(--er)">${rows.filter(r=>r.dev>0.2).length} 🔴 / ${rows.filter(r=>r.dev>0.1&&r.dev<=0.2).length} 🟡</div><div class="sc-lbl">Превышают (+20% / +10–20%)</div></div>
-    <div class="sc"><div class="sc-val" style="color:var(--ok)">${under}</div><div class="sc-lbl">Ниже метрики (зелёные)</div></div>
-    <div class="sc"><div class="sc-val" style="color:${totalDev>10?'var(--er)':totalDev<-10?'var(--ok)':'var(--ac)'}">${totalDev>0?'+':''}${totalDev}%</div><div class="sc-lbl">Общее отклонение</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--t)">${rows.length}</div><div class="sc-l">ОМСУ в расчёте</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--er)">${red}</div><div class="sc-l">🔴 Превышение &gt;+20%</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--warn)">${yellow}</div><div class="sc-l">🟡 Превышение +10–20%</div></div>
+    <div class="sc"><div class="sc-v" style="color:${devColor}">${totalDev > 0 ? '+' : ''}${totalDev}%</div><div class="sc-l">Общее отклонение</div></div>
   `;
 }
 
-function renderTable(rows) {
-  const q = document.getElementById('search').value.toLowerCase();
-  const filtered = q ? rows.filter(r=>r.omsu.toLowerCase().includes(q)) : rows;
-  const maxDev = Math.max(...filtered.map(r=>Math.abs(r.dev)), 0.01);
+// ═══════════════════════════════════════════════════════
+// RENDER METHOD BOX — explain what was used
+// ═══════════════════════════════════════════════════════
+function renderMethodBox(rows, fromStr, toStr, days) {
+  const methods = {};
+  rows.forEach(r => { methods[r.method] = (methods[r.method] || 0) + 1; });
+  const methodSummary = Object.entries(methods).map(([k,v]) => `<b>${k}</b> — ${v} ОМСУ`).join(' · ');
 
-  document.getElementById('tbl-body').innerHTML = filtered.map(r => {
-    const devPct = Math.round(r.dev*100);
-    // Color by how much OVER metric: ≤10% green, 10-20% yellow, >20% red; under metric always green
-    const devClass = r.dev < 0 ? 'under' : r.dev <= 0.1 ? 'green' : r.dev <= 0.2 ? 'yellow' : 'red';
-    const devLabel = (devPct>0?'+':'')+devPct+'%';
-    const barW = Math.min(Math.abs(r.dev)/maxDev*100,100);
-    const barClass = r.dev < 0 ? 'bar-under' : r.dev <= 0.1 ? 'bar-green' : r.dev <= 0.2 ? 'bar-yellow' : 'bar-red';
+  const from = new Date(fromStr + 'T00:00:00');
+  const to   = new Date(toStr   + 'T00:00:00');
+  const fromM = MONTH_IDX[from.getMonth()];
+  const toM   = MONTH_IDX[to.getMonth()];
+  const spanMonths = fromM === toM ? fromM : `${fromM} → ${toM}`;
+
+  let ruleText = '';
+  const allMethods = Object.keys(methods);
+  if (allMethods.length === 1 && allMethods[0] === 'полный месяц') {
+    ruleText = `Период = полный календарный месяц → используется <b>месячная метрика</b> напрямую.`;
+  } else if (allMethods.length === 1 && allMethods[0] === 'недельный показатель') {
+    ruleText = `Период = ровно 7 дней в одном месяце → <b>недельная норма = месячная ÷ 4,33</b>.`;
+  } else if (allMethods.length === 1 && allMethods[0].includes('дневная норма')) {
+    ruleText = `Период ${days} дн. внутри одного месяца → <b>дневная норма = месячная ÷ кол-во дней в месяце × ${days}</b>.`;
+  } else {
+    ruleText = `Период захватывает несколько месяцев (<b>${spanMonths}</b>) → для каждого месяца считается дневная норма (месячная ÷ дней в месяце), умножается на количество дней этого месяца в периоде, результаты суммируются.`;
+    ruleText += `<div class="formula">метрика = Σ (месячная_норма[M] / дней_в_месяце[M]) × дней_периода_в_M</div>`;
+  }
+
+  document.getElementById('method-box').innerHTML = `
+    <b>📊 Метод расчёта метрики:</b><br>
+    ${ruleText}<br>
+    <span style="color:var(--td)">Использовано: ${methodSummary}</span>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER TABLE
+// ═══════════════════════════════════════════════════════
+function renderTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const rows = q ? tableData.filter(r => r.omsu.toLowerCase().includes(q)) : tableData;
+  const maxDev = Math.max(...rows.map(r => Math.abs(r.dev)), 0.01);
+
+  document.getElementById('tbl-body').innerHTML = rows.map(r => {
+    const pct = Math.round(r.dev * 100);
+    const cls = r.dev > 0.2 ? 'r' : r.dev > 0.1 ? 'y' : 'g';
+    const label = (pct >= 0 ? '+' : '') + pct + '%';
+    const barW = Math.min(Math.abs(r.dev) / maxDev * 100, 100);
+    const detailHtml = r.detail.map(d => `<div style="color:var(--td);font-size:10px;margin-top:2px">${d}</div>`).join('');
     return `<tr>
-      <td style="color:var(--td)">${r.rank}</td>
-      <td class="omsu-name">${r.omsu}</td>
-      <td class="metric">${fmt(r.metric)}</td>
-      <td class="actual">${fmt(r.actual)}</td>
-      <td><span class="dev ${devClass}">${devLabel}</span></td>
-      <td><div class="bar-wrap"><div class="bar-fill ${barClass}" style="width:${barW}%"></div></div></td>
+      <td class="dim">${r.rank}</td>
+      <td class="n">${r.omsu}</td>
+      <td class="dim">${fmt(r.metric)}</td>
+      <td class="n">${fmt(r.actual)}</td>
+      <td><span class="chip chip-${cls}">${label}</span></td>
+      <td><div class="bar-w"><div class="bar-f bar-${cls}" style="width:${barW}%"></div></div></td>
+      <td style="max-width:280px">${r.method}${detailHtml}</td>
     </tr>`;
   }).join('');
 }
 
-function filterTable() { renderTable(tableData); }
-
+// ═══════════════════════════════════════════════════════
+// SORT
+// ═══════════════════════════════════════════════════════
 function sortBy(col) {
-  if (sortCol===col) sortDir *= -1; else { sortCol=col; sortDir=1; }
-  tableData.sort((a,b)=>{
-    let av=a[col], bv=b[col];
-    if(typeof av==='string') return av.localeCompare(bv,'ru')*sortDir;
-    return (av-bv)*sortDir;
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+  tableData.sort((a, b) => {
+    const av = a[col], bv = b[col];
+    if (typeof av === 'string') return av.localeCompare(bv, 'ru') * sortDir;
+    return ((av||0) - (bv||0)) * sortDir;
   });
-  tableData.forEach((r,i)=>r.rank=i+1);
-  document.querySelectorAll('th').forEach(th=>th.className='');
-  document.querySelectorAll('th').forEach((th,i)=>{
-    const cols=['rank','omsu','metric','actual','dev','bar'];
-    if(cols[i]===sortCol) th.className='sort-'+(sortDir>0?'asc':'desc');
+  tableData.forEach((r, i) => r.rank = i + 1);
+  document.querySelectorAll('th').forEach((th, i) => {
+    th.className = '';
+    const cols = ['rank','omsu','metric','actual','dev','bar','method'];
+    if (cols[i] === sortCol) th.className = sortDir > 0 ? 'asc' : 'desc';
   });
-  renderTable(tableData);
+  renderTable();
 }
 
-function fmt(n){ return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,'\u00a0'); }
-function setInfo(msg,cls){ const el=document.getElementById('info'); el.textContent=msg; el.className='info '+(cls||''); }
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function fmt(n) { return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,'\u00a0'); }
+function fmtDateRu(s) {
+  const d = new Date(s + 'T00:00:00');
+  return `${d.getDate()} ${MONTH_RU[d.getMonth()]}`;
+}
+function renderZato() {
+  if (!zatoData.length) { document.getElementById('zato-section').style.display='none'; return; }
+  document.getElementById('zato-section').style.display='block';
+  document.getElementById('zato-body').innerHTML = zatoData.map(r => {
+    const pct = Math.round(r.dev * 100);
+    const cls = r.dev > 0.2 ? 'r' : r.dev > 0.1 ? 'y' : 'g';
+    const label = (pct >= 0 ? '+' : '') + pct + '%';
+    const detailHtml = r.detail.map(d => `<div style="color:var(--td);font-size:10px;margin-top:2px">${d}</div>`).join('');
+    return `<tr>
+      <td class="n">${r.omsu}</td>
+      <td class="dim">${fmt(r.metric)}</td>
+      <td class="n">${fmt(r.actual)}</td>
+      <td><span class="chip chip-${cls}">${label}</span></td>
+      <td style="max-width:280px">${r.method}${detailHtml}</td>
+    </tr>`;
+  }).join('');
+}
 
-// Set today as default
+function setInfo(msg, cls) {
+  const el = document.getElementById('info');
+  el.textContent = msg; el.className = 'info ' + (cls||'');
+}
+
+// Default dates
 const today = new Date().toISOString().slice(0,10);
 document.getElementById('dateFrom').value = today;
-document.getElementById('dateTo').value = today;
+document.getElementById('dateTo').value   = today;
 </script>
 </body>
 </html>
