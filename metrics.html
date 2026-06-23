@@ -29,8 +29,8 @@ input[type=date]:focus,input[type=text]:focus{border-color:var(--ac)}
 .info.ok{color:var(--ok)}.info.err{color:var(--er)}
 .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
-.sum-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-@media(max-width:900px){.sum-cards{grid-template-columns:repeat(2,1fr)}}
+.sum-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:900px){.sum-cards{grid-template-columns:repeat(3,1fr)}}
 .sc{background:var(--card);border:1px solid var(--b);border-radius:8px;padding:12px 14px}
 .sc-v{font-size:24px;font-weight:800;line-height:1}
 .sc-l{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:.4px;margin-top:5px}
@@ -321,8 +321,9 @@ function renderSummary(rows, days, fromStr, toStr) {
   document.getElementById('tbl-title').textContent = `${period} · ${days} дн.`;
   document.getElementById('summary').innerHTML = `
     <div class="sc"><div class="sc-v" style="color:var(--t)">${rows.length}</div><div class="sc-l">ОМСУ в расчёте</div></div>
-    <div class="sc"><div class="sc-v" style="color:var(--er)">${red}</div><div class="sc-l">🔴 Превышение &gt;+20%</div></div>
-    <div class="sc"><div class="sc-v" style="color:var(--warn)">${yellow}</div><div class="sc-l">🟡 Превышение +10–20%</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--ok)">${green}</div><div class="sc-l">🟢 Норма (до +10%)</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--warn)">${yellow}</div><div class="sc-l">🟡 На контроле (+10–20%)</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--er)">${red}</div><div class="sc-l">🔴 Разбор (&gt;+20%)</div></div>
     <div class="sc"><div class="sc-v" style="color:${devColor}">${totalDev > 0 ? '+' : ''}${totalDev}%</div><div class="sc-l">Общее отклонение</div></div>
   `;
 }
