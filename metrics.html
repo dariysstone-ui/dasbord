@@ -62,6 +62,8 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .pill-y{background:rgba(245,158,11,.15);color:var(--warn)}
 .pill-r{background:rgba(244,63,94,.15);color:var(--er)}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -81,6 +83,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
 </div>
 
 <div id="result" style="display:none">
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <button class="btn" id="pptxBtn" onclick="exportPptx()" style="background:#7c3aed">📊 Скачать PPTX</button>
+    <button class="btn" id="xlsxBtn" onclick="exportXlsx()" style="background:#059669">📥 Скачать Excel</button>
+  </div>
   <div class="sum-cards" id="summary"></div>
   <div class="method" id="method-box"></div>
   <div class="panel">
@@ -96,7 +102,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <th onclick="sortBy('metric')">Метрика</th>
           <th onclick="sortBy('actual')">Факт</th>
           <th onclick="sortBy('dev')">Отклонение</th>
-          <th>Диаграмма</th>
+          <th>Загрузка</th>
           <th onclick="sortBy('method')" style="font-size:10px">Метод расчёта</th>
         </tr></thead>
         <tbody id="tbl-body"></tbody>
@@ -264,6 +270,7 @@ async function generate() {
     if (!group) { setInfo('Группа "Содержание территории" не найдена', 'err'); return; }
 
     // Actual counts by OMSU name
+    window._metricsApiData = json; // save for xlsx export
     const actualMap = {};
     (group.omsus || []).forEach(o => { actualMap[o.name] = o.count || 0; });
 
@@ -292,6 +299,9 @@ async function generate() {
     renderMethodBox(mainRows, fromStr, toStr, days);
     renderTable();
 
+    window._metricsDates = { fromStr, toStr, days };
+    document.getElementById('pptxBtn').disabled = false;
+    document.getElementById('xlsxBtn').disabled = false;
     renderZato();
     setInfo(`✓ ${mainRows.length} ОМСУ + ${zatoRows.length} ЗАТО, период ${days} дн.`, 'ok');
     document.getElementById('result').style.display = 'block';
@@ -431,6 +441,201 @@ function renderZato() {
       <td style="max-width:280px">${r.method}${detailHtml}</td>
     </tr>`;
   }).join('');
+}
+
+
+// ═══════════════════════════════════════════════════════
+// PPTX EXPORT — one slide, two columns, no ZATO
+// ═══════════════════════════════════════════════════════
+function exportPptx() {
+  if (!tableData.length) return;
+  const { fromStr, toStr } = window._metricsDates;
+  const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
+  const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
+  const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
+  const title = `Мониторинг обращений граждан по тематике «Содержание территории»\n${periodLabel}`;
+
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_16x9';
+  const slide = pptx.addSlide();
+
+  // Title background
+  slide.addShape(pptx.ShapeType.rect, {x:0, y:0, w:'100%', h:1.4, fill:{color:'1B4F8A'}});
+  slide.addText(title, {x:0.2, y:0.1, w:9.6, h:1.2, fontSize:20, bold:true, color:'FFFFFF', wrap:true});
+
+  // Table headers
+  const HDR = ['ОМСУ','Допустимое значение','Поступило','Отклонение'];
+  const colW = [2.5, 1.8, 1.4, 1.4];
+  const ROW_H = 0.28;
+  const HDR_H = 0.5;
+  const Y0 = 1.5;
+  const col2X = 5.1; // second table X offset
+
+  const rows = tableData.slice(); // already sorted by dev desc
+  const half = Math.ceil(rows.length / 2);
+  const left  = rows.slice(0, half);
+  const right = rows.slice(half);
+
+  function devColor(dev) {
+    if (dev > 0.2) return 'C0392B';
+    if (dev > 0.1) return 'D68910';
+    if (dev > 0)   return '27AE60';
+    return '27AE60';
+  }
+
+  function drawTable(rowsArr, xOffset) {
+    // Header
+    let x = xOffset;
+    HDR.forEach((h, i) => {
+      slide.addShape(pptx.ShapeType.rect, {x, y:Y0, w:colW[i], h:HDR_H, fill:{color:'2C3E50'}, line:{color:'FFFFFF',pt:0.5}});
+      slide.addText(h, {x:x+0.03, y:Y0+0.05, w:colW[i]-0.06, h:HDR_H-0.1, fontSize:9, bold:true, color:'FFFFFF', align:'center', wrap:true});
+      x += colW[i];
+    });
+    // Rows
+    rowsArr.forEach((r, ri) => {
+      let x2 = xOffset;
+      const bg = ri % 2 === 0 ? 'F2F3F4' : 'FFFFFF';
+      const pct = Math.round(r.dev * 100);
+      const devText = (pct >= 0 ? '+' : '') + pct + '%';
+      const devC = devColor(r.dev);
+      const cells = [r.omsu, fmt(r.metric), fmt(r.actual), devText];
+      cells.forEach((txt, ci) => {
+        const y = Y0 + HDR_H + ri * ROW_H;
+        slide.addShape(pptx.ShapeType.rect, {x:x2, y, w:colW[ci], h:ROW_H, fill:{color:bg}, line:{color:'BFC9CA',pt:0.3}});
+        const isBold = ci === 3;
+        const color  = ci === 3 ? devC : '1A1A1A';
+        slide.addText(txt, {x:x2+0.03, y:y+0.02, w:colW[ci]-0.06, h:ROW_H-0.04, fontSize:8, bold:isBold, color, align: ci===0?'left':'center'});
+        x2 += colW[ci];
+      });
+    });
+  }
+
+  drawTable(left,  0.15);
+  drawTable(right, col2X);
+
+  // Slide number
+  slide.addText('1', {x:9.5, y:6.8, w:0.4, h:0.3, fontSize:10, color:'888888', align:'right'});
+
+  pptx.writeFile({fileName:`Метрика_${periodLabel}.pptx`});
+}
+
+// ═══════════════════════════════════════════════════════
+// XLSX EXPORT — sheet1: metric table + zato; sheet2: detail rows
+// ═══════════════════════════════════════════════════════
+async function exportXlsx() {
+  if (!tableData.length) { alert('Сначала сформируйте отчёт'); return; }
+  const btn = document.getElementById('xlsxBtn');
+  btn.disabled = true; btn.textContent = '⏳ Загрузка данных...';
+
+  const { fromStr, toStr } = window._metricsDates;
+  const apiUrl = document.getElementById('apiUrl').value.trim();
+
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Сводная ──
+    const periodLabel = fromStr === toStr ? fmtDateRu(fromStr) : `${fmtDateRu(fromStr)} – ${fmtDateRu(toStr)}`;
+    const aoa1 = [];
+    aoa1.push([`Мониторинг обращений по тематике «Содержание территории» ${periodLabel}`]);
+    aoa1.push([]);
+    aoa1.push(['ОМСУ','Допустимое значение / Период','Поступило','Отклонение %','Метод расчёта']);
+
+    tableData.forEach(r => {
+      const pct = Math.round(r.dev * 100);
+      aoa1.push([r.omsu, r.metric, r.actual, (pct >= 0 ? '+' : '') + pct + '%', r.method]);
+    });
+
+    // Totals row
+    const totMetric = tableData.reduce((s,r)=>s+r.metric,0);
+    const totActual = tableData.reduce((s,r)=>s+r.actual,0);
+    const totDev = totMetric > 0 ? Math.round((totActual/totMetric-1)*100) : 0;
+    aoa1.push(['ИТОГО', totMetric, totActual, (totDev>=0?'+':'')+totDev+'%', '']);
+    aoa1.push([]);
+
+    // ZATO block
+    if (zatoData.length) {
+      aoa1.push(['Закрытые административно-территориальные образования (ЗАТО)']);
+      aoa1.push(['ОМСУ','Допустимое значение / Период','Поступило','Отклонение %','Метод расчёта']);
+      zatoData.forEach(r => {
+        const pct = Math.round(r.dev * 100);
+        aoa1.push([r.omsu, r.metric, r.actual, (pct>=0?'+':'')+pct+'%', r.method]);
+      });
+    }
+
+    const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+    ws1['!cols'] = [{wch:28},{wch:22},{wch:12},{wch:14},{wch:28}];
+    // Merge title cell
+    ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}}];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Сводная');
+
+    // ── Sheet 2: Детализация — fetch raw rows from API ──
+    btn.textContent = '⏳ Загрузка детализации...';
+
+    const initResp = await fetch(apiUrl, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        start:fromStr, end:toStr, compStart:fromStr, compEnd:toStr,
+        omsuFilter:[], sourceFilter:[], subFilter:[],
+        sgFilter:['Содержание территории'],
+        exportRaw:true
+      })
+    });
+    if (!initResp.ok) throw new Error('Ошибка API: '+initResp.status);
+    const init = await initResp.json();
+
+    let chunk0cols = null;
+    const csvLines = [];
+    const { months, omsuFilter, sourceFilter, subFilter, sgFilter } = init;
+
+    for (let i=0; i<months.length; i++) {
+      btn.textContent = `⏳ ${months[i]} (${i+1}/${months.length})...`;
+      const mr = await fetch(apiUrl, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          start:fromStr, end:toStr, compStart:fromStr, compEnd:toStr,
+          omsuFilter, sourceFilter, subFilter, sgFilter,
+          exportMonth:months[i]
+        })
+      });
+      if (!mr.ok) continue;
+      const mc = await mr.json();
+      if (!chunk0cols && mc.cols) chunk0cols = mc.cols;
+      for (const row of (mc.rows||[])) csvLines.push(row);
+    }
+
+    if (chunk0cols && csvLines.length) {
+      function parseSemiCsv(line) {
+        const fields=[]; let cur='',inQ=false;
+        for (let i=0;i<line.length;i++) {
+          const c=line[i];
+          if(inQ){if(c==='"'&&line[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}
+          else if(c==='"')inQ=true;
+          else if(c===';'){fields.push(cur);cur='';}
+          else cur+=c;
+        }
+        fields.push(cur); return fields;
+      }
+      const aoa2 = [chunk0cols, ...csvLines.map(parseSemiCsv)];
+      const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+      ws2['!cols'] = chunk0cols.map(h => {
+        if(h==='Описание') return {wch:60};
+        if(h==='Факт'||h==='Подтема') return {wch:45};
+        if(h==='Адрес') return {wch:50};
+        return {wch:16};
+      });
+      XLSX.utils.book_append_sheet(wb, ws2, 'Детализация');
+    }
+
+    const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
+    const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+    const fname = `Метрика_${fmtD(from)}${fromStr===toStr?'':'_'+fmtD(to)}.xlsx`;
+    XLSX.writeFile(wb, fname);
+
+  } catch(err) {
+    alert('Ошибка: '+err.message); console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = '📥 Скачать Excel';
+  }
 }
 
 function setInfo(msg, cls) {
