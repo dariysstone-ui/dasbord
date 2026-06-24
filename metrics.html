@@ -474,7 +474,6 @@ async function exportPptx() {
     // ── Build one table cell ──
     function tc(text, {bg='FFFFFF',fg='000000',bold=0,sz=900,align='ctr',
                        font='Aptos Narrow',ml=36576,bw=6350,bc='C0C0C0'}={}) {
-      const bLine = `<a:ln w="${bw}"><a:solidFill><a:srgbClr val="${bc}"/></a:solidFill></a:ln>`;
       return `<a:tc><a:txBody><a:bodyPr wrap="square"/><a:lstStyle/>` +
         `<a:p><a:pPr algn="${align}"/>` +
         `<a:r><a:rPr sz="${sz}" b="${bold}">` +
@@ -482,8 +481,10 @@ async function exportPptx() {
         `<a:latin typeface="${font}"/></a:rPr>` +
         `<a:t>${xe(text)}</a:t></a:r></a:p></a:txBody>` +
         `<a:tcPr marL="${ml}" marR="36576" marT="22860" marB="0" anchor="b">` +
-        `<a:lnL>${bLine.slice(5,-6)}</a:lnL><a:lnR>${bLine.slice(5,-6)}</a:lnR>` +
-        `<a:lnT>${bLine.slice(5,-6)}</a:lnT><a:lnB>${bLine.slice(5,-6)}</a:lnB>` +
+        `<a:lnL w="${bw}"><a:solidFill><a:srgbClr val="${bc}"/></a:solidFill></a:lnL>` +
+        `<a:lnR w="${bw}"><a:solidFill><a:srgbClr val="${bc}"/></a:solidFill></a:lnR>` +
+        `<a:lnT w="${bw}"><a:solidFill><a:srgbClr val="${bc}"/></a:solidFill></a:lnT>` +
+        `<a:lnB w="${bw}"><a:solidFill><a:srgbClr val="${bc}"/></a:solidFill></a:lnB>` +
         `<a:solidFill><a:srgbClr val="${bg}"/></a:solidFill></a:tcPr></a:tc>`;
     }
 
