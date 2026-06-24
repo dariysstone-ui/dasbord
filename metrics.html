@@ -445,7 +445,7 @@ function renderZato() {
 
 
 // ═══════════════════════════════════════════════════════
-// PPTX EXPORT — client-side PptxGenJS with proper row heights
+// PPTX EXPORT — raw OOXML via JSZip (exact row heights)
 // ═══════════════════════════════════════════════════════
 async function exportPptx() {
   if (!tableData.length) return;
@@ -453,111 +453,250 @@ async function exportPptx() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Генерация...';
 
   try {
+    // Load JSZip
+    if (typeof JSZip === 'undefined') {
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload=res; s.onerror=rej; document.head.appendChild(s);
+      });
+    }
+
     const { fromStr, toStr } = window._metricsDates;
     const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
-    const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
-    const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
+    const fmtD = d=>`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
+    const periodLabel = fromStr===toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
     const title = `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`;
 
-    const pptx = new PptxGenJS();
-    // 16:9 — matches reference
-    pptx.layout = 'LAYOUT_16x9'; // 10" x 7.5"
+    const emu = in_ => Math.round(in_ * 914400);
+    const pt100 = p => p * 100; // font size in hundredths of pt
+    const xe = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    const slide = pptx.addSlide();
+    // ── Color logic ──
+    const devCol = dev => dev>0.2 ? 'C00000' : dev>0.1 ? 'C07000' : '1E7B1E';
 
-    // ── Title strip ──
-    const HDR_H = 0.72;
-    slide.addShape(pptx.ShapeType.rect, {
-      x:0, y:0, w:10, h:HDR_H,
-      fill:{color:'1B4F8A'}, line:{type:'none'}
-    });
-    slide.addText(title, {
-      x:0.12, y:0, w:9.76, h:HDR_H,
-      fontSize:14, bold:true, color:'FFFFFF',
-      fontFace:'Arial', valign:'middle', wrap:true, margin:0
-    });
+    // ── Build one table cell XML ──
+    function tcXml(text, {bg='FFFFFF', color='000000', bold=0, sz=900, align='ctr',
+                           font='Aptos Narrow', marL=114300, bord='BBBBBB', bordW=6350}={}) {
+      const ln = w => `<a:ln w="${w}"><a:solidFill><a:srgbClr val="${bord}"/></a:solidFill><a:prstDash val="solid"/></a:ln>`;
+      return `<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p>
+        <a:pPr algn="${align}"/><a:r>
+        <a:rPr lang="ru-RU" sz="${sz}" b="${bold}" dirty="0">
+          <a:solidFill><a:srgbClr val="${color}"/></a:solidFill>
+          <a:latin typeface="${font}"/>
+        </a:rPr><a:t>${xe(text)}</a:t></a:r></a:p></a:txBody>
+        <a:tcPr marL="${marL}" marR="38100" marT="19050" marB="0" anchor="b">
+          ${ln(bordW)}<a:lnR>${ln(bordW).slice(5,-6)}</a:lnR>
+          ${ln(bordW)}<a:lnB>${ln(bordW).slice(5,-6)}</a:lnB>
+          <a:solidFill><a:srgbClr val="${bg}"/></a:solidFill>
+        </a:tcPr></a:tc>`;
+    }
 
-    // ── Layout ──
+    // ── Build table XML ──
+    function buildTableXml(rows, colWidths, x, y) {
+      const HDR_H = emu(0.65);
+      const ROW_H = emu(0.215);
+      const totalW = colWidths.reduce((a,b)=>a+b,0);
+      const totalH = HDR_H + ROW_H * rows.length;
+
+      // Column grid
+      const gridCols = colWidths.map(w=>`<a:gridCol w="${w}"/>`).join('');
+      // Header row
+      const hdrBg = '2E3F5C';
+      const hdrRow = `<a:tr h="${HDR_H}">
+        ${tcXml('ОМСУ',{bg:hdrBg,color:'FFFFFF',bold:1,sz:1000,font:'Arial',marL:114300,bord:'FFFFFF',bordW:9525})}
+        ${tcXml(`Допустимое\u000aзначение\u000a${periodLabel}`,{bg:hdrBg,color:'FFFFFF',bold:1,sz:1000,font:'Arial',align:'ctr',bord:'FFFFFF',bordW:9525})}
+        ${tcXml(`Поступило\u000a${periodLabel}`,{bg:hdrBg,color:'FFFFFF',bold:1,sz:1000,font:'Arial',align:'ctr',bord:'FFFFFF',bordW:9525})}
+        ${tcXml('Отклонение',{bg:hdrBg,color:'FFFFFF',bold:1,sz:1000,font:'Arial',align:'ctr',bord:'FFFFFF',bordW:9525})}
+      </a:tr>`;
+
+      const dataRows = rows.map((r,ri)=>{
+        const bg = ri%2===0 ? 'FFFFFF' : 'F2F3F4';
+        const pct = Math.round(r.dev*100);
+        const devTxt = (pct>=0?'+':'')+pct+'%';
+        const dc = devCol(r.dev);
+        return `<a:tr h="${ROW_H}">
+          ${tcXml(r.omsu,       {bg,color:'000000',sz:900,align:'l',marL:114300})}
+          ${tcXml(fmt(r.metric),{bg,color:'000000',sz:900,align:'ctr'})}
+          ${tcXml(fmt(r.actual),{bg,color:'000000',sz:900,align:'ctr'})}
+          ${tcXml(devTxt,       {bg,color:dc,bold:1,sz:900,align:'ctr'})}
+        </a:tr>`;
+      }).join('');
+
+      return `<p:graphicFrame>
+        <p:nvGraphicFramePr>
+          <p:cNvPr id="3" name="Table"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>
+          <p:nvPr/>
+        </p:nvGraphicFramePr>
+        <p:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${totalW}" cy="${totalH}"/></p:xfrm>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+          <a:tbl><a:tblPr firstRow="1" bandRow="1">
+            <a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId>
+          </a:tblPr>
+          <a:tblGrid>${gridCols}</a:tblGrid>
+          ${hdrRow}${dataRows}
+        </a:tbl></a:graphicData></a:graphic>
+      </p:graphicFrame>`;
+    }
+
+    // ── Split data ──
     const rows = tableData.slice();
-    const half = Math.ceil(rows.length / 2);
-    const leftRows  = rows.slice(0, half);
+    const half = Math.ceil(rows.length/2);
+    const leftRows  = rows.slice(0,half);
     const rightRows = rows.slice(half);
 
-    const colW = [1.60, 1.30, 1.10, 1.30]; // total ~5.30"
-    const GAP  = 0.20;
-    const X0   = 0.10;
-    const X1   = X0 + colW.reduce((a,b)=>a+b,0) + GAP;
-    const Y0   = HDR_H + 0.04;
-    const HDR_ROW_H  = 0.55;  // header row height
-    const DATA_ROW_H = 0.21;  // data row — fits ~25 rows on slide
+    // Col widths in EMU — ~5.3" each table, gap 0.2"
+    const colW = [emu(1.65), emu(1.35), emu(1.10), emu(1.20)];
+    const tblW = colW.reduce((a,b)=>a+b,0);
+    const GAP  = emu(0.20);
+    const X0   = emu(0.10);
+    const X1   = X0 + tblW + GAP;
+    const Y0   = emu(0.80);
 
-    function devColor(dev) {
-      if (dev > 0.2)  return 'C00000';
-      if (dev > 0.1)  return 'B05000';
-      return '1E7B1E';
-    }
+    const titleXml = `<p:sp>
+      <p:nvSpPr><p:cNvPr id="1" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${emu(10)}" cy="${emu(0.72)}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+        <a:solidFill><a:srgbClr val="1B4F8A"/></a:solidFill>
+        <a:ln><a:noFill/></a:ln>
+      </p:spPr>
+      <p:txBody><a:bodyPr marL="${emu(0.12)}" marR="${emu(0.12)}" marT="${emu(0.08)}" marB="${emu(0.04)}" anchor="ctr"/>
+        <a:lstStyle/><a:p><a:r>
+          <a:rPr lang="ru-RU" sz="1400" b="1" dirty="0">
+            <a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>
+            <a:latin typeface="Arial"/>
+          </a:rPr>
+          <a:t>${xe(title)}</a:t>
+        </a:r></a:p>
+      </p:txBody>
+    </p:sp>`;
 
-    function makeTableRows(rowsArr) {
-      const BORDER = {type:'solid', pt:0.3, color:'BBBBBB'};
-      const BORDER_HDR = {type:'solid', pt:0.5, color:'FFFFFF'};
-      const hdrFill = {color:'2E3F5C'};
-      const FONT = 'Aptos Narrow';
+    const leftTbl  = buildTableXml(leftRows,  colW, X0, Y0);
+    const rightTbl = buildTableXml(rightRows, colW, X1, Y0);
 
-      const hdrRow = [
-        {text:'ОМСУ',
-          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
-        {text:`Допустимое\nзначение\n${periodLabel}`,
-          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
-        {text:`Поступило\n${periodLabel}`,
-          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
-        {text:'Отклонение',
-          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
-      ];
+    const slideXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    ${titleXml}
+    ${leftTbl}
+    ${rightTbl}
+  </p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClr/></p:clrMapOvr>
+</p:sld>`;
 
-      const dataRows = rowsArr.map((r, ri) => {
-        const pct = Math.round(r.dev * 100);
-        const devTxt = (pct >= 0 ? '+' : '') + pct + '%';
-        const dc = devColor(r.dev);
-        const bg = ri%2===0 ? {color:'FFFFFF'} : {color:'F2F3F4'};
-        return [
-          {text:r.omsu,        options:{fontSize:9,color:'000000',fontFace:FONT,align:'left',  valign:'bottom',fill:bg,border:BORDER,margin:[0,0,0,4]}},
-          {text:fmt(r.metric), options:{fontSize:9,color:'000000',fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER}},
-          {text:fmt(r.actual), options:{fontSize:9,color:'000000',fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER}},
-          {text:devTxt,        options:{fontSize:9,color:dc,       fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER,bold:true}},
-        ];
-      });
+    // ── Assemble PPTX (ZIP) ──
+    const zip = new JSZip();
 
-      return [hdrRow, ...dataRows];
-    }
+    zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+  <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+</Types>`);
 
-    const leftTableRows  = makeTableRows(leftRows);
-    const rightTableRows = makeTableRows(rightRows);
+    zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`);
 
-    const leftRowH  = [HDR_ROW_H, ...Array(leftRows.length).fill(DATA_ROW_H)];
-    const rightRowH = [HDR_ROW_H, ...Array(rightRows.length).fill(DATA_ROW_H)];
+    zip.file('ppt/presentation.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>
+  <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+  <p:sldSz cx="${emu(10)}" cy="${emu(7.5)}" type="screen4x3"/>
+  <p:notesSz cx="${emu(7.5)}" cy="${emu(10)}"/>
+  <p:defaultTextStyle/>
+</p:presentation>`);
 
-    slide.addTable(leftTableRows, {
-      x:X0, y:Y0,
-      colW, rowH: leftRowH,
-      border:{type:'solid', pt:0.3, color:'BBBBBB'},
-    });
+    zip.file('ppt/_rels/presentation.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>`);
 
-    slide.addTable(rightTableRows, {
-      x:X1, y:Y0,
-      colW, rowH: rightRowH,
-      border:{type:'solid', pt:0.3, color:'BBBBBB'},
-    });
+    zip.file('ppt/slides/slide1.xml', slideXml);
 
-    // Slide number
-    slide.addText('1', {x:9.6, y:7.2, w:0.35, h:0.25, fontSize:9, color:'888888', align:'right'});
+    zip.file('ppt/slides/_rels/slide1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`);
 
-    pptx.writeFile({fileName:`Метрика_${periodLabel}.pptx`});
+    zip.file('ppt/slideLayouts/slideLayout1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+  </p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClr/></p:clrMapOvr>
+</p:sldLayout>`);
+
+    zip.file('ppt/slideLayouts/_rels/slideLayout1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`);
+
+    zip.file('ppt/slideMasters/slideMaster1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+             xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    </p:spTree>
+  </p:cSld>
+  <p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles>
+  <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+</p:sldMaster>`);
+
+    zip.file('ppt/slideMasters/_rels/slideMaster1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+</Relationships>`);
+
+    zip.file('ppt/theme/theme1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme">
+  <a:themeElements>
+    <a:clrScheme name="Office"><a:dk1><a:sysClr lastClr="000000" val="windowText"/></a:dk1><a:lt1><a:sysClr lastClr="FFFFFF" val="window"/></a:lt1>
+      <a:dk2><a:srgbClr val="44546A"/></a:dk2><a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1><a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+      <a:accent3><a:srgbClr val="A9D18E"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4>
+      <a:accent5><a:srgbClr val="5A96C0"/></a:accent5><a:accent6><a:srgbClr val="70AD47"/></a:accent6>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="Office"><a:majorFont><a:latin typeface="Calibri Light"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/></a:minorFont></a:fontScheme>
+    <a:fmtScheme name="Office"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+      <a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+      <a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+      <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+    </a:fmtScheme>
+  </a:themeElements>
+</a:theme>`);
+
+    const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Метрика_${periodLabel}.pptx`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
 
   } catch(err) {
-    alert('Ошибка генерации PPTX: ' + err.message);
+    alert('Ошибка генерации PPTX: '+err.message);
     console.error(err);
   } finally {
-    btn.disabled = false; btn.innerHTML = '📊 Скачать PPTX';
+    btn.disabled=false; btn.innerHTML='📊 Скачать PPTX';
   }
 }
 
