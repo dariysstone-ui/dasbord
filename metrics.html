@@ -445,38 +445,114 @@ function renderZato() {
 
 
 // ═══════════════════════════════════════════════════════
-// PPTX EXPORT — calls server-side Python generator
+// PPTX EXPORT — client-side PptxGenJS with proper row heights
 // ═══════════════════════════════════════════════════════
 async function exportPptx() {
   if (!tableData.length) return;
   const btn = document.getElementById('pptxBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Генерация...';
 
-  const { fromStr, toStr } = window._metricsDates;
-  const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
-  const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
-  const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
-  const title = `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`;
-
-  // Build rows array: [omsu, metric, actual, dev_pct]
-  const rows = tableData.map(r => [r.omsu, r.metric, r.actual, Math.round(r.dev * 100)]);
-
   try {
-    const apiBase = document.getElementById('apiUrl').value.trim().replace(/\/api$/, '');
-    const resp = await fetch(apiBase + '/api/pptx', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, period: periodLabel, rows })
+    const { fromStr, toStr } = window._metricsDates;
+    const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
+    const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
+    const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
+    const title = `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`;
+
+    const pptx = new PptxGenJS();
+    // 16:9 — matches reference
+    pptx.layout = 'LAYOUT_16x9'; // 10" x 7.5"
+
+    const slide = pptx.addSlide();
+
+    // ── Title strip ──
+    const HDR_H = 0.72;
+    slide.addShape(pptx.ShapeType.rect, {
+      x:0, y:0, w:10, h:HDR_H,
+      fill:{color:'1B4F8A'}, line:{type:'none'}
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(() => ({}));
-      throw new Error(e.error || `HTTP ${resp.status}`);
+    slide.addText(title, {
+      x:0.12, y:0, w:9.76, h:HDR_H,
+      fontSize:14, bold:true, color:'FFFFFF',
+      fontFace:'Arial', valign:'middle', wrap:true, margin:0
+    });
+
+    // ── Layout ──
+    const rows = tableData.slice();
+    const half = Math.ceil(rows.length / 2);
+    const leftRows  = rows.slice(0, half);
+    const rightRows = rows.slice(half);
+
+    const colW = [1.60, 1.30, 1.10, 1.30]; // total ~5.30"
+    const GAP  = 0.20;
+    const X0   = 0.10;
+    const X1   = X0 + colW.reduce((a,b)=>a+b,0) + GAP;
+    const Y0   = HDR_H + 0.04;
+    const HDR_ROW_H  = 0.55;  // header row height
+    const DATA_ROW_H = 0.21;  // data row — fits ~25 rows on slide
+
+    function devColor(dev) {
+      if (dev > 0.2)  return 'C00000';
+      if (dev > 0.1)  return 'B05000';
+      return '1E7B1E';
     }
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `Метрика_${periodLabel}.pptx`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    function makeTableRows(rowsArr) {
+      const BORDER = {type:'solid', pt:0.3, color:'BBBBBB'};
+      const BORDER_HDR = {type:'solid', pt:0.5, color:'FFFFFF'};
+      const hdrFill = {color:'2E3F5C'};
+      const FONT = 'Aptos Narrow';
+
+      const hdrRow = [
+        {text:'ОМСУ',
+          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
+        {text:`Допустимое\nзначение\n${periodLabel}`,
+          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
+        {text:`Поступило\n${periodLabel}`,
+          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
+        {text:'Отклонение',
+          options:{bold:true,fontSize:10,color:'FFFFFF',fontFace:'Arial',align:'center',valign:'middle',fill:hdrFill,border:BORDER_HDR,wrap:true}},
+      ];
+
+      const dataRows = rowsArr.map((r, ri) => {
+        const pct = Math.round(r.dev * 100);
+        const devTxt = (pct >= 0 ? '+' : '') + pct + '%';
+        const dc = devColor(r.dev);
+        const bg = ri%2===0 ? {color:'FFFFFF'} : {color:'F2F3F4'};
+        return [
+          {text:r.omsu,        options:{fontSize:9,color:'000000',fontFace:FONT,align:'left',  valign:'bottom',fill:bg,border:BORDER,margin:[0,0,0,4]}},
+          {text:fmt(r.metric), options:{fontSize:9,color:'000000',fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER}},
+          {text:fmt(r.actual), options:{fontSize:9,color:'000000',fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER}},
+          {text:devTxt,        options:{fontSize:9,color:dc,       fontFace:FONT,align:'center',valign:'bottom',fill:bg,border:BORDER,bold:true}},
+        ];
+      });
+
+      return [hdrRow, ...dataRows];
+    }
+
+    const leftTableRows  = makeTableRows(leftRows);
+    const rightTableRows = makeTableRows(rightRows);
+
+    const leftRowH  = [HDR_ROW_H, ...Array(leftRows.length).fill(DATA_ROW_H)];
+    const rightRowH = [HDR_ROW_H, ...Array(rightRows.length).fill(DATA_ROW_H)];
+
+    slide.addTable(leftTableRows, {
+      x:X0, y:Y0,
+      colW, rowH: leftRowH,
+      border:{type:'solid', pt:0.3, color:'BBBBBB'},
+    });
+
+    slide.addTable(rightTableRows, {
+      x:X1, y:Y0,
+      colW, rowH: rightRowH,
+      border:{type:'solid', pt:0.3, color:'BBBBBB'},
+    });
+
+    // Slide number
+    slide.addText('1', {x:9.6, y:7.2, w:0.35, h:0.25, fontSize:9, color:'888888', align:'right'});
+
+    pptx.writeFile({fileName:`Метрика_${periodLabel}.pptx`});
+
   } catch(err) {
     alert('Ошибка генерации PPTX: ' + err.message);
     console.error(err);
