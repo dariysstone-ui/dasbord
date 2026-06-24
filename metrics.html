@@ -445,121 +445,46 @@ function renderZato() {
 
 
 // ═══════════════════════════════════════════════════════
-// PPTX EXPORT — A4 landscape, real table, two columns, no ZATO
-// Matches reference PPTX style exactly
+// PPTX EXPORT — calls server-side Python generator
 // ═══════════════════════════════════════════════════════
-function exportPptx() {
+async function exportPptx() {
   if (!tableData.length) return;
+  const btn = document.getElementById('pptxBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Генерация...';
+
   const { fromStr, toStr } = window._metricsDates;
   const from = new Date(fromStr+'T00:00:00'), to = new Date(toStr+'T00:00:00');
   const fmtD = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(2)}`;
   const periodLabel = fromStr === toStr ? fmtD(from) : `${fmtD(from)}-${fmtD(to)}`;
+  const title = `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`;
 
-  // A4 landscape: 297mm x 210mm = 11.69" x 8.27"
-  const pptx = new PptxGenJS();
-  pptx.defineLayout({name:'A4L', width:11.69, height:8.27});
-  pptx.layout = 'A4L';
+  // Build rows array: [omsu, metric, actual, dev_pct]
+  const rows = tableData.map(r => [r.omsu, r.metric, r.actual, Math.round(r.dev * 100)]);
 
-  const slide = pptx.addSlide();
-
-  // ── Title block ──
-  const HDR_H = 0.72; // matches reference 0.775"
-  slide.addShape(pptx.ShapeType.rect, {x:0, y:0, w:11.69, h:HDR_H, fill:{color:'1B4F8A'}, line:{type:'none'}});
-  slide.addText(
-    `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`,
-    {x:0.15, y:0, w:11.39, h:HDR_H, fontSize:16, bold:true, color:'FFFFFF',
-     fontFace:'Arial', valign:'middle', wrap:true}
-  );
-
-  // ── Split rows: left half and right half by deviation desc ──
-  const rows = tableData.slice();
-  const half = Math.ceil(rows.length / 2);
-  const left  = rows.slice(0, half);
-  const right = rows.slice(half);
-
-  // ── Column definitions ──
-  // Reference: colW [1.69, 1.51, 1.16, 1.44] inches per table, two tables side by side
-  const colWL = [{w:1.70},{w:1.51},{w:1.16},{w:1.44}]; // left table
-  const colWR = [{w:1.70},{w:1.51},{w:1.16},{w:1.44}]; // right table
-  const TABLE_W_INCH = 1.70+1.51+1.16+1.44; // ~5.81"
-  const GAP = 0.12;
-  const X_LEFT  = 0.08;
-  const X_RIGHT = X_LEFT + TABLE_W_INCH + GAP;
-  const Y_TBL   = HDR_H + 0.05;
-  const ROW_H_INCH = 0.208; // 0.224" ≈ 16pt row height
-  const HDR_ROW_H  = 0.55;
-
-  // ── Dev color ──
-  function devColor(dev) {
-    if (dev > 0.2)  return 'C00000'; // red
-    if (dev > 0.1)  return 'C07000'; // amber
-    if (dev >= 0)   return '1E7B1E'; // green
-    return '1E7B1E'; // below metric = green
-  }
-
-  // ── Build table rows array for PptxGenJS ──
-  function buildTableRows(rowsArr, periodStr) {
-    const HDR_FILL = '2C3E50';
-    const HDR_COL  = 'FFFFFF';
-    const FONT     = 'Aptos Narrow';
-    const FONT_HDR = 'Arial';
-    const SZ_HDR   = 1200; // 12pt in hundredths
-    const SZ_DATA  = 1100; // 11pt
-
-    const border = {type:'solid', pt:0.5, color:'BFC9CA'};
-    const borderHdr = {type:'solid', pt:0.5, color:'FFFFFF'};
-
-    const hdrRow = [
-      {text:'ОМСУ',              options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
-      {text:`Допустимое\nзначение\n${periodStr}`, options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
-      {text:`Поступило\n${periodStr}`,            options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
-      {text:'Отклонение', options:{bold:true, fontSize:12, color:HDR_COL, fontFace:FONT_HDR, align:'center', valign:'middle', fill:{color:HDR_FILL}, border:[borderHdr,borderHdr,borderHdr,borderHdr]}},
-    ];
-
-    const dataRows = rowsArr.map((r, ri) => {
-      const pct = Math.round(r.dev * 100);
-      const devTxt = (pct >= 0 ? '+' : '') + pct + '%';
-      const dc = devColor(r.dev);
-      const bgFill = ri % 2 === 0 ? {color:'FFFFFF'} : {color:'F2F3F4'};
-      return [
-        {text:r.omsu,       options:{fontSize:11, color:'000000', fontFace:FONT, align:'left',   valign:'bottom', fill:bgFill, margin:[0,0,0,4], border}},
-        {text:fmt(r.metric),options:{fontSize:11, color:'000000', fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, border}},
-        {text:fmt(r.actual),options:{fontSize:11, color:'000000', fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, border}},
-        {text:devTxt,       options:{fontSize:11, color:dc,       fontFace:FONT, align:'center', valign:'bottom', fill:bgFill, bold:true, border}},
-      ];
+  try {
+    const apiBase = document.getElementById('apiUrl').value.trim().replace(/\/api$/, '');
+    const resp = await fetch(apiBase + '/api/pptx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, period: periodLabel, rows })
     });
-
-    return [hdrRow, ...dataRows];
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error || `HTTP ${resp.status}`);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Метрика_${periodLabel}.pptx`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch(err) {
+    alert('Ошибка генерации PPTX: ' + err.message);
+    console.error(err);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '📊 Скачать PPTX';
   }
-
-  const periodHdr = fromStr===toStr
-    ? `${String(from.getDate()).padStart(2,'0')}.${String(from.getMonth()+1).padStart(2,'0')}`
-    : `${fmtD(from)}-${fmtD(to)}`;
-
-  const leftRows  = buildTableRows(left,  periodHdr);
-  const rightRows = buildTableRows(right, periodHdr);
-
-  slide.addTable(leftRows, {
-    x:X_LEFT, y:Y_TBL, w:TABLE_W_INCH,
-    colW:[1.70,1.51,1.16,1.44],
-    rowH:[HDR_ROW_H, ...Array(left.length).fill(ROW_H_INCH)],
-    fontFace:'Aptos Narrow', fontSize:11,
-    border:{type:'solid', pt:0.5, color:'BFC9CA'},
-  });
-
-  slide.addTable(rightRows, {
-    x:X_RIGHT, y:Y_TBL, w:TABLE_W_INCH,
-    colW:[1.70,1.51,1.16,1.44],
-    rowH:[HDR_ROW_H, ...Array(right.length).fill(ROW_H_INCH)],
-    fontFace:'Aptos Narrow', fontSize:11,
-    border:{type:'solid', pt:0.5, color:'BFC9CA'},
-  });
-
-  // Slide number
-  slide.addText('1', {x:11.2, y:8.0, w:0.4, h:0.25, fontSize:10, color:'888888', align:'right'});
-
-  pptx.writeFile({fileName:`Метрика_${periodLabel}.pptx`});
 }
+
 
 // ═══════════════════════════════════════════════════════
 // XLSX EXPORT — sheet1: metric table + zato; sheet2: detail rows
