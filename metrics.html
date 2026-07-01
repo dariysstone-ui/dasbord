@@ -382,7 +382,7 @@ function renderTable() {
 
   document.getElementById('tbl-body').innerHTML = rows.map(r => {
     const pct = Math.round(r.dev * 100);
-    const cls = r.dev > 0.2 ? 'r' : r.dev > 0.1 ? 'y' : 'g';
+    const cls = r.dev >= 0.21 ? 'r' : r.dev >= 0.11 ? 'y' : 'g';
     const label = (pct >= 0 ? '+' : '') + pct + '%';
     const barW = Math.min(Math.abs(r.dev) / maxDev * 100, 100);
     const detailHtml = r.detail.map(d => `<div style="color:var(--td);font-size:10px;margin-top:2px">${d}</div>`).join('');
