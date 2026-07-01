@@ -319,9 +319,9 @@ async function generate() {
 // RENDER SUMMARY
 // ═══════════════════════════════════════════════════════
 function renderSummary(rows, days, fromStr, toStr) {
-  const red    = rows.filter(r => r.dev => 0.21).length;
-  const yellow = rows.filter(r => r.dev => 0.11 && r.dev < 0.21).length;
-  const green  = rows.filter(r => r.dev < 0.11).length;
+  const red    = rows.filter(r => r.dev > 0.2).length;
+  const yellow = rows.filter(r => r.dev > 0.1 && r.dev <= 0.2).length;
+  const green  = rows.filter(r => r.dev <= 0.1).length;
   const totalActual = rows.reduce((s,r) => s + r.actual, 0);
   const totalMetric = rows.reduce((s,r) => s + r.metric, 0);
   const totalDev = totalMetric > 0 ? Math.round((totalActual / totalMetric - 1) * 100) : 0;
@@ -332,7 +332,7 @@ function renderSummary(rows, days, fromStr, toStr) {
   document.getElementById('summary').innerHTML = `
     <div class="sc"><div class="sc-v" style="color:var(--t)">${rows.length}</div><div class="sc-l">ОМСУ в расчёте</div></div>
     <div class="sc"><div class="sc-v" style="color:var(--ok)">${green}</div><div class="sc-l">🟢 Норма (до +10%)</div></div>
-    <div class="sc"><div class="sc-v" style="color:var(--warn)">${yellow}</div><div class="sc-l">🟡 На контроле (+11–20%)</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--warn)">${yellow}</div><div class="sc-l">🟡 На контроле (+10–20%)</div></div>
     <div class="sc"><div class="sc-v" style="color:var(--er)">${red}</div><div class="sc-l">🔴 Разбор (&gt;+20%)</div></div>
     <div class="sc"><div class="sc-v" style="color:${devColor}">${totalDev > 0 ? '+' : ''}${totalDev}%</div><div class="sc-l">Общее отклонение</div></div>
   `;
