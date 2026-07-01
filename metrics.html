@@ -468,7 +468,7 @@ async function exportPptx() {
     const title = `Мониторинг обращений граждан по тематике «Содержание территории» ${periodLabel}`;
 
     const xe = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const dc = dev => dev=>0.21?'C00000':dev=>0.11?'C07000':'1E7B1E';
+    const dc = dev => dev>=0.21?'C00000':dev>=0.11?'C07000':'1E7B1E';
     const EMU = in_ => Math.round(in_*914400);
 
     // ── Build one table cell ──
