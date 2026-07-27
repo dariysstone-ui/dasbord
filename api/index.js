@@ -481,6 +481,13 @@ function addToGroup(dst, g) {
     for (const [o, n] of Object.entries(v.omsus || {}))
       dst.addrs[k].omsus[o] = (dst.addrs[k].omsus[o] || 0) + n;
   }
+  for (const [k, v] of Object.entries(g.uks || {})) {
+    if (!dst.uks[k]) dst.uks[k] = { c: 0, subs: {}, mails: 0 };
+    dst.uks[k].c += v.c || 0;
+    dst.uks[k].mails = (dst.uks[k].mails||0) + (v.mails||0);
+    for (const [s, n] of Object.entries(v.subs || {}))
+      dst.uks[k].subs[s] = (dst.uks[k].subs[s] || 0) + n;
+  }
 }
 
 // ─── Scale group values by ratio (used when sourceFilter applied without omsuFilter) ───
@@ -554,7 +561,7 @@ function processDashboardData(main, comp) {
   for (const [name, m] of Object.entries(main)) {
     if (!m.total || m.total === 0) continue;
     const c = comp[name] || { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{} };
-    const entry = { name, total: m.total, compTotal: c.total||0, subs:[], facts:[], omsus:[], mails:[], addrs:[] };
+    const entry = { name, total: m.total, compTotal: c.total||0, subs:[], facts:[], omsus:[], mails:[], addrs:[], uks:[] };
     const safeTotal = m.total || 1;
 
     Object.entries(m.subs||{}).sort((a,b)=>b[1].count-a[1].count).forEach(([k,v]) => {
@@ -581,6 +588,12 @@ function processDashboardData(main, comp) {
       const ss = Object.entries(d.subs||{}).sort((a,b)=>b[1]-a[1]);
       entry.addrs.push({ address:k, count:d.c||0, mainSub:ss[0]?.[0]||'-',
         mainSubCnt:ss[0]?.[1]||0, mainSubPct: (d.c||0)>0?Math.round((ss[0]?.[1]||0)/d.c*100):0 });
+    });
+    Object.entries(m.uks||{}).sort((a,b)=>b[1].c-a[1].c).forEach(([k,d]) => {
+      const {pct,abs} = dyn(d.c||0, c.uks?.[k]?.c||0);
+      const ss = Object.entries(d.subs||{}).sort((a,b)=>b[1]-a[1]);
+      entry.uks.push({ name:k, count:d.c||0, dynPct:pct, dynAbs:abs,
+        mainSub:ss[0]?.[0]||'-', mailCount:d.mails||0 });
     });
     result.push(entry);
   }
