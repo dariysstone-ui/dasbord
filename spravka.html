@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генератор аналитической справки</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--panel:#151921;--card:#1a2030;--b:#243044;--bl:#1e2d42;
+  --t:#e2eaf6;--tm:#7a90b0;--td:#4a607e;--ac:#3b82f6;--ok:#10b981;--er:#f43f5e;--warn:#f59e0b;--r:10px;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--t);font-size:13px;padding:20px}
+.wrap{max-width:1100px;margin:0 auto}
+.panel{background:var(--panel);border:1px solid var(--b);border-radius:var(--r);padding:20px 22px;margin-bottom:14px}
+.panel h2{font-size:15px;font-weight:700;margin-bottom:14px}
+label{display:block;margin-bottom:4px;color:var(--tm);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+input[type=date],input[type=text],select{width:100%;padding:9px 10px;background:var(--card);border:1px solid var(--bl);border-radius:8px;color:var(--t);font-size:13px;outline:none}
+input[type=date]:focus,select:focus{border-color:var(--ac)}
+.fg{display:grid;gap:10px}
+.fg-2{grid-template-columns:1fr 1fr}
+.fg-3{grid-template-columns:1fr 1fr 1fr}
+.fg-4{grid-template-columns:1fr 1fr 1fr 1fr}
+@media(max-width:700px){.fg-2,.fg-3,.fg-4{grid-template-columns:1fr 1fr}}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:600;font-size:13px;background:var(--ac);color:#fff;transition:all .2s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sec{background:var(--card);color:var(--tm);border:1px solid var(--bl)}
+.btn-green{background:var(--ok)}
+.info{font-size:12px;color:var(--tm);padding:6px 0;min-height:20px}
+.info.ok{color:var(--ok)}.info.err{color:var(--er)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sg-checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.sg-check{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--bl);border-radius:6px;padding:6px 12px;cursor:pointer;user-select:none;font-size:12px}
+.sg-check input{accent-color:var(--ac)}
+.omsu-select{max-height:200px;overflow-y:auto}
+#preview-area{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="panel">
+  <h2>📋 Генератор аналитической справки</h2>
+
+  <div class="fg fg-3" style="margin-bottom:12px">
+    <div>
+      <label>URL API</label>
+      <input type="text" id="apiUrl" value="/api" placeholder="https://dasbord-ashen.vercel.app/api">
+    </div>
+    <div>
+      <label>ОМСУ</label>
+      <select id="omsuSel"><option value="">-- Выберите ОМСУ --</option></select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <label>&nbsp;</label>
+      <button class="btn btn-sec" onclick="loadOmsuList()" style="height:39px">🔄 Загрузить список ОМСУ</button>
+    </div>
+  </div>
+
+  <div class="fg fg-4" style="margin-bottom:12px">
+    <div><label>Основной период: с</label><input type="date" id="dateFrom"></div>
+    <div><label>Основной период: по</label><input type="date" id="dateTo"></div>
+    <div><label>Сравнение: с</label><input type="date" id="cmpFrom"></div>
+    <div><label>Сравнение: по</label><input type="date" id="cmpTo"></div>
+  </div>
+
+  <div style="margin-bottom:14px">
+    <label>Синт. группы для включения в справку</label>
+    <div class="sg-checks" id="sg-checks">
+      <label class="sg-check"><input type="checkbox" value="МКД" checked> МКД</label>
+      <label class="sg-check"><input type="checkbox" value="Содержание территории" checked> Содержание территории</label>
+      <label class="sg-check"><input type="checkbox" value="Контейнерная площадка" checked> Контейнерная площадка</label>
+      <label class="sg-check"><input type="checkbox" value="Содержание муниципальных дорог" checked> Содержание муниципальных дорог</label>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="genBtn" onclick="generateSpravka()">📋 Сформировать справку</button>
+    <button class="btn btn-green" id="printBtn" onclick="printReport()" style="display:none">🖨️ Печать / PDF</button>
+    <button class="btn btn-sec" id="htmlBtn" onclick="downloadHtml()" style="display:none">⬇️ Скачать HTML</button>
+  </div>
+  <div class="info" id="info"></div>
+</div>
+
+<div id="preview-area"></div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// НАСЕЛЕНИЕ
+// ═══════════════════════════════════════════════════════
+const POP = {"Балашиха":569040,"Богородский":222878,"Бронницы":21050,"Власиха":28556,"Волоколамский":64353,"Воскресенск":161862,"Восход":2056,"Дзержинский":57308,"Дмитровский":168673,"Долгопрудный":118760,"Домодедово":231034,"Дубна":74223,"Егорьевск":111529,"Жуковский":109831,"Зарайск":36444,"Звездный городок":7559,"Истра":172195,"Кашира":66093,"Клин":149813,"Коломна":215146,"Королёв":226477,"Котельники":75289,"Красногорск":345865,"Краснознаменск":44687,"Ленинский":342130,"Лобня":82353,"Лосино-Петровский":74266,"Лотошино":21850,"Луховицы":61324,"Лыткарино":66930,"Люберцы":391176,"Можайский":93410,"Молодёжный":2838,"Мытищи":314245,"Наро-Фоминский":201751,"Одинцовский":488473,"Орехово-Зуевский":240786,"Павлово-Посадский":122800,"Подольск":351752,"Пушкинский":303588,"Раменский":326038,"Реутов":118065,"Рузский":80478,"Сергиево-Посадский":208982,"Серебряные Пруды":23325,"Серпухов":239430,"Солнечногорск":140933,"Ступино":118452,"Талдомский":64680,"Фрязино":58554,"Химки":280221,"Черноголовка":21197,"Чехов":149055,"Шатура":100601,"Шаховская":29919,"Щелково":223423,"Электросталь":151989};
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+const xe = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function fmt(n){return Math.round(n||0).toLocaleString('ru-RU').replace(/,/g,'\u00a0');}
+function pct(a,b){if(!b)return a>0?'+100%':'0%';const d=Math.round((a/b-1)*100);return(d>=0?'+':'')+d+'%';}
+function diff(a,b){const d=Math.round((a||0)-(b||0));return(d>=0?'+':'')+fmt(d);}
+function fmtDate(s){const d=new Date(s+'T00:00:00');return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});}
+function fmtDateShort(s){const d=new Date(s+'T00:00:00');return`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;}
+function setInfo(m,c){const el=document.getElementById('info');el.textContent=m;el.className='info '+(c||'');}
+
+// ═══════════════════════════════════════════════════════
+// LOAD OMSU LIST
+// ═══════════════════════════════════════════════════════
+async function loadOmsuList(){
+  const apiUrl=document.getElementById('apiUrl').value.trim();
+  const today=new Date().toISOString().slice(0,10);
+  setInfo('Загрузка ОМСУ...','');
+  try{
+    const r=await fetch(apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({start:today,end:today,compStart:today,compEnd:today,omsuFilter:[],sourceFilter:[],subFilter:[],sgFilter:[]})});
+    const j=await r.json();
+    const omsus=new Set();
+    (j.data||[]).forEach(g=>(g.omsus||[]).forEach(o=>omsus.add(o.name)));
+    // Also add from POP keys
+    Object.keys(POP).forEach(k=>omsus.add(k));
+    const sel=document.getElementById('omsuSel');
+    sel.innerHTML='<option value="">-- Выберите ОМСУ --</option>';
+    [...omsus].sort((a,b)=>a.localeCompare(b,'ru')).forEach(o=>{
+      const opt=document.createElement('option');opt.value=o;opt.textContent=o;sel.appendChild(opt);
+    });
+    setInfo(`✓ Загружено ${omsus.size} ОМСУ`,'ok');
+  }catch(e){setInfo('Ошибка: '+e.message,'err');}
+}
+
+// ═══════════════════════════════════════════════════════
+// FETCH DATA
+// ═══════════════════════════════════════════════════════
+async function fetchGroup(apiUrl,start,end,compStart,compEnd,omsu,sgFilter){
+  const r=await fetch(apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({start,end,compStart,compEnd,omsuFilter:omsu?[omsu]:[],sourceFilter:[],subFilter:[],sgFilter})});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||`HTTP ${r.status}`);}
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════
+// GENERATE
+// ═══════════════════════════════════════════════════════
+async function generateSpravka(){
+  const apiUrl=document.getElementById('apiUrl').value.trim();
+  const omsu=document.getElementById('omsuSel').value;
+  const fromStr=document.getElementById('dateFrom').value;
+  const toStr=document.getElementById('dateTo').value;
+  const cmpFrom=document.getElementById('cmpFrom').value;
+  const cmpTo=document.getElementById('cmpTo').value;
+  const selectedSGs=[...document.querySelectorAll('#sg-checks input:checked')].map(c=>c.value);
+
+  if(!omsu){setInfo('Выберите ОМСУ','err');return;}
+  if(!fromStr||!toStr){setInfo('Укажите основной период','err');return;}
+  if(!selectedSGs.length){setInfo('Выберите хотя бы одну синт. группу','err');return;}
+
+  const btn=document.getElementById('genBtn');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Загрузка...';
+  setInfo('Запросы к API...','');
+
+  try{
+    const hasCmp=!!(cmpFrom&&cmpTo);
+    const compStart=hasCmp?cmpFrom:fromStr;
+    const compEnd=hasCmp?cmpTo:toStr;
+
+    setInfo('Загрузка данных...','');
+    const[main,comp]=await Promise.all([
+      fetchGroup(apiUrl,fromStr,toStr,compStart,compEnd,omsu,selectedSGs),
+      fetchGroup(apiUrl,compStart,compEnd,fromStr,toStr,omsu,selectedSGs),
+    ]);
+
+    setInfo('Формирование справки...','');
+
+    const norm=s=>s.toLowerCase().replace(/ё/g,'е').trim();
+    const findG=(data,name)=>(data.data||[]).find(g=>norm(g.name).includes(norm(name))||norm(name).includes(norm(g.name)));
+
+    // Build per-group data
+    const groupData={};
+    for(const sg of selectedSGs){
+      const m=findG(main,sg)||{total:0,subs:[],facts:[],omsus:[],mails:[],addrs:[],uks:[]};
+      const c=findG(comp,sg)||{total:0,subs:[],facts:[],omsus:[],mails:[],addrs:[],uks:[]};
+      groupData[sg]={main:m,comp:c};
+    }
+
+    const totalMain=selectedSGs.reduce((s,sg)=>s+(groupData[sg].main.total||0),0);
+    const totalComp=selectedSGs.reduce((s,sg)=>s+(groupData[sg].comp.total||0),0);
+    const pop=POP[omsu]||0;
+    const today=new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+
+    // ── Generate HTML ──
+    const html=buildSpravkaHtml({
+      omsu,pop,fromStr,toStr,compStart,compEnd,hasCmp,
+      today,selectedSGs,groupData,totalMain,totalComp
+    });
+
+    document.getElementById('preview-area').innerHTML=html;
+    document.getElementById('preview-area').style.display='block';
+    document.getElementById('printBtn').style.display='';
+    document.getElementById('htmlBtn').style.display='';
+    setInfo(`✓ Справка сформирована — ${fmt(totalMain)} обращений за период`,'ok');
+
+  }catch(e){setInfo('Ошибка: '+e.message,'err');console.error(e);}
+  finally{btn.disabled=false;btn.innerHTML='📋 Сформировать справку';}
+}
+
+// ═══════════════════════════════════════════════════════
+// BUILD HTML
+// ═══════════════════════════════════════════════════════
+function buildSpravkaHtml({omsu,pop,fromStr,toStr,compStart,compEnd,hasCmp,today,selectedSGs,groupData,totalMain,totalComp}){
+  const periodMain=`${fmtDateShort(fromStr)}–${fmtDateShort(toStr)}`;
+  const periodComp=hasCmp?`${fmtDateShort(compStart)}–${fmtDateShort(compEnd)}`:'аналогичный период прошлого года';
+  const dynTotal=totalComp>0?Math.round((totalMain/totalComp-1)*100):null;
+
+  // ── Ключевые выводы ──
+  const takeaways=[];
+  const dynSign=dynTotal!==null?(dynTotal>0?'рост':'снижение'):'изменение';
+  const dynAbs=totalMain-totalComp;
+  if(totalComp>0){
+    takeaways.push(`<strong>Общий объём обращений по выбранным направлениям:</strong> за период ${periodMain} поступило <strong>${fmt(totalMain)}</strong> жалоб${hasCmp?` против ${fmt(totalComp)} за ${periodComp} — ${dynSign} <span class="${dynTotal>0?'pct-up':'pct-down'}">${diff(totalMain,totalComp)} (${pct(totalMain,totalComp)})</span>`:''}.`);
+  }
+
+  // Ключевые тренды по группам
+  for(const sg of selectedSGs){
+    const{main:m,comp:c}=groupData[sg];
+    if(!m.total)continue;
+    const d=c.total>0?Math.round((m.total/c.total-1)*100):null;
+    const dSign=d!==null?(d>0?'рост':'снижение'):'данные';
+    takeaways.push(`<strong>${sg}:</strong> ${fmt(m.total)} обращений${d!==null?` — ${dSign} <span class="${d>0?'pct-up':'pct-down'}">${diff(m.total,c.total)} (${pct(m.total,c.total)})</span> к периоду сравнения`:''}.`);
+    // Critical subs
+    const critSubs=(m.subs||[]).filter(s=>{
+      const cv=(c.subs||[]).find(x=>x.name===s.name);
+      return cv&&cv.count>0&&s.count/cv.count-1>0.3;
+    });
+    if(critSubs.length){
+      const topCrit=critSubs.sort((a,b)=>{
+        const ac=(c.subs||[]).find(x=>x.name===a.name)?.count||1;
+        const bc=(c.subs||[]).find(x=>x.name===b.name)?.count||1;
+        return(b.count/bc)-(a.count/ac);
+      }).slice(0,3);
+      takeaways.push(`В рамках «${sg}» критический прирост: ${topCrit.map(s=>{
+        const cv=(c.subs||[]).find(x=>x.name===s.name)?.count||1;
+        return`«${s.name}» <span class="pct-up">${pct(s.count,cv)}</span>`;
+      }).join(', ')}.`);
+    }
+  }
+
+  // ── Sections HTML ──
+  let sections='';
+  let secNum=3;
+  const tocItems=[
+    {n:'01',t:'Содержание справки',s:'наст. раздел'},
+    {n:'02',t:'Ключевые выводы',s:'саммари'},
+    {n:'03',t:'Общий объём обращений',s:'статистика'},
+  ];
+
+  // Group sections
+  for(const sg of selectedSGs){
+    secNum++;
+    tocItems.push({n:String(secNum).padStart(2,'0'),t:`Тематика «${sg}»`,s:'декомпозиция'});
+  }
+  secNum++;
+  tocItems.push({n:String(secNum).padStart(2,'0'),t:'Адреса и заявители',s:'топ'});
+
+  // ── Block 03 общий объём ──
+  const statCards=selectedSGs.map(sg=>{
+    const{main:m,comp:c}=groupData[sg];
+    const d=c.total>0?Math.round((m.total/c.total-1)*100):null;
+    const cls=d===null?'neutral':d>0?'up':'down';
+    return`<div class="stat-card ${cls}">
+      <div class="stat-card-label">${sg} · ${periodMain}</div>
+      <div class="stat-card-value">${fmt(m.total)}</div>
+      ${hasCmp&&c.total?`<div class="stat-card-compare">${periodComp}: ${fmt(c.total)} · <span class="delta-${cls}">${diff(m.total,c.total)} (${pct(m.total,c.total)})</span></div>`:''}
+    </div>`;
+  }).join('');
+
+  sections+=`<div class="block">
+  <div class="section-tag"><span class="num">03</span> Общий объём обращений</div>
+  <h2>${dynTotal!==null?(Math.abs(dynTotal)>5?(dynTotal>0?'Рост':'Снижение')+' обращений — '+(Math.abs(dynTotal))+'%':'Стабильный уровень обращений'):'Объём обращений за период'}</h2>
+  <p class="block-desc">Сопоставление количественных показателей по выбранным тематикам за периоды ${periodMain} и ${periodComp}.</p>
+  <div class="stat-grid">${statCards}</div>
+  ${pop?`<div class="callout neutral" style="margin-top:18px"><div class="callout-icon">ℹ</div><div class="callout-text">Коэффициент на 10 000 жителей (население ${fmt(pop)} чел.): <strong>${(totalMain/pop*10000).toFixed(1)}</strong> обращений за период.</div></div>`:''}
+</div>`;
+
+  // ── Per-group sections ──
+  let gNum=3;
+  for(const sg of selectedSGs){
+    gNum++;
+    const{main:m,comp:c}=groupData[sg];
+    if(!m.total&&!c.total)continue;
+
+    // Subtopics table
+    const allSubNames=new Set([...(m.subs||[]).map(s=>s.name),...(c.subs||[]).map(s=>s.name)]);
+    const subRows=[...allSubNames].map(name=>{
+      const ms=(m.subs||[]).find(s=>s.name===name)||{count:0};
+      const cs=(c.subs||[]).find(s=>s.name===name)||{count:0};
+      const d=cs.count>0?Math.round((ms.count/cs.count-1)*100):null;
+      return{name,mc:ms.count,cc:cs.count,d};
+    }).filter(r=>r.mc>0||r.cc>0).sort((a,b)=>b.mc-a.mc);
+
+    const subTableRows=subRows.map((r,i)=>{
+      const d=r.d;
+      const cls=d===null?'':d>30?'row-crit':d>0?'row-warn':d<0?'row-good':'';
+      const dCls=d===null?'':d>0?'up':'down';
+      const badge=d!==null&&d>50?'<span class="badge crit">КРИТИЧЕСКИЙ ПРИРОСТ</span>':d!==null&&d>20?'<span class="badge warn">ПРИРОСТ</span>':d!==null&&d<-20?'<span class="badge good">СНИЖЕНИЕ</span>':'';
+      return`<tr class="${cls}"><td class="rank">${String(i+1).padStart(2,'0')}</td>
+        <td>${xe(r.name)}${badge}</td>
+        ${hasCmp?`<td class="num">${fmt(r.cc)}</td>`:''}
+        <td class="num">${fmt(r.mc)}</td>
+        ${hasCmp&&r.d!==null?`<td class="delta ${dCls}">${r.d>=0?'+':''}${r.d}%</td>`:'<td></td>'}
+      </tr>`;
+    }).join('');
+
+    // Bars visualization
+    const maxMc=Math.max(...subRows.map(r=>r.mc),1);
+    const barsMain=subRows.slice(0,8).map((r,i)=>{
+      const w=Math.round(r.mc/maxMc*100);
+      const d=r.d;
+      return`<div class="bar-row"><span class="bar-rank">${i+1}</span><span class="bar-label-text">${xe(r.name)} ${fmt(r.mc)} (${Math.round(r.mc/(m.total||1)*100)}%)</span><div class="bar-track"><div class="bar-fill" style="width:${w}%"></div></div>${hasCmp&&d!==null?`<div class="bar-num ${d>0?'up':'down'}">${d>=0?'+':''}${d}%</div>`:''}</div>`;
+    }).join('');
+
+    // УК table (if МКД)
+    let ukSection='';
+    if(sg==='МКД'&&m.uks&&m.uks.length){
+      const ukRows=m.uks.slice(0,15).map((u,i)=>{
+        const cu=(c.uks||[]).find(x=>x.name===u.name)||{count:0};
+        const d=cu.count>0?Math.round((u.count/cu.count-1)*100):null;
+        const cls=d===null?'row-crit':d>50?'row-crit':d>0?'row-warn':d<0?'row-good':'';
+        const dCls=d===null?'up':d>0?'up':'down';
+        return`<tr class="${cls}"><td>${xe(u.name)}</td>
+          ${hasCmp?`<td class="num">${fmt(cu.count)}</td>`:''}
+          <td class="num">${fmt(u.count)}</td>
+          ${hasCmp&&d!==null?`<td class="delta ${dCls}">${d>=0?'+':''}${d}%</td>`:'<td></td>'}
+        </tr>`;
+      }).join('');
+      ukSection=`<h3>Антирейтинг управляющих организаций</h3>
+      <p class="block-desc">Управляющие организации по количеству обращений за ${periodMain}.</p>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Управляющая организация</th>
+        ${hasCmp?`<th style="width:140px">${periodComp}</th>`:''}
+        <th style="width:140px">${periodMain}</th>
+        <th style="width:110px">Динамика</th>
+      </tr></thead><tbody>${ukRows}</tbody></table></div>`;
+    }
+
+    // Top facts
+    const topFacts=(m.facts||[]).slice(0,8).map((f,i)=>`<div class="bar-row">
+      <span class="bar-rank">${i+1}</span>
+      <span class="bar-label-text">${xe(f.name)} — ${fmt(f.count)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(f.count/(m.total||1)*100)}%"></div></div>
+    </div>`).join('');
+
+    sections+=`<div class="block">
+  <div class="section-tag"><span class="num">${String(gNum).padStart(2,'0')}</span> Тематика «${xe(sg)}» · полная декомпозиция</div>
+  <h2>${xe(sg)} — ${fmt(m.total)} обращений</h2>
+  <p class="block-desc">${hasCmp&&c.total?`Динамика к периоду сравнения: <strong>${pct(m.total,c.total)}</strong> (${diff(m.total,c.total)} обращений). `:''}Период: ${periodMain}.</p>
+
+  <div class="two-col">
+    <div>
+      <h3>Подкатегории (подтемы)</h3>
+      <div class="table-wrap"><table><thead><tr>
+        <th style="width:50px">№</th><th>Подкатегория</th>
+        ${hasCmp?`<th style="width:120px">${periodComp}</th>`:''}
+        <th style="width:120px">${periodMain}</th>
+        <th style="width:100px">Динамика</th>
+      </tr></thead><tbody>${subTableRows}</tbody></table></div>
+    </div>
+    <div>
+      <div class="bars-container">
+        <div class="bars-title">${xe(sg)} · ${periodMain}</div>
+        <div class="bars-subtitle">Топ-8 подкатегорий по объёму</div>
+        ${barsMain}
+      </div>
+    </div>
+  </div>
+
+  ${topFacts?`<h3>Топ фактов (причин обращений)</h3>
+  <div class="bars-container">${topFacts}</div>`:''}
+
+  ${ukSection}
+</div>`;
+  }
+
+  // ── Block: адреса и заявители ──
+  let addrMailSections='';
+  const lastNum=gNum+1;
+  for(const sg of selectedSGs){
+    const{main:m}=groupData[sg];
+    const topAddrs=(m.addrs||[]).slice(0,10);
+    const topMails=(m.mails||[]).filter(ml=>!ml.email?.includes('konus.group')).slice(0,10);
+
+    if(!topAddrs.length&&!topMails.length)continue;
+
+    addrMailSections+=`<h3>«${xe(sg)}» — топ адреса и заявители</h3>
+    <div class="two-col">
+      ${topAddrs.length?`<div class="info-card">
+        <div class="info-card-topic">${xe(sg)}</div>
+        <div class="info-card-meta">Топ-${topAddrs.length} адресов · ${xe(omsu)}</div>
+        ${topAddrs.map((a,i)=>`<div class="info-row">
+          <span class="info-rank">${String(i+1).padStart(2,'0')}</span>
+          <span class="info-text address">${xe(a.address)}</span>
+          <span class="info-count">${fmt(a.count)}</span>
+        </div>`).join('')}
+      </div>`:''}
+      ${topMails.length?`<div class="info-card">
+        <div class="info-card-topic">Заявители</div>
+        <div class="info-card-meta">Топ-${topMails.length} · ${xe(sg)}</div>
+        ${topMails.map((ml,i)=>`<div class="info-row">
+          <span class="info-rank">${String(i+1).padStart(2,'0')}</span>
+          <span class="info-text">${xe(ml.email)}</span>
+          <span class="info-count">${fmt(ml.count)}</span>
+        </div>`).join('')}
+      </div>`:''}
+    </div>`;
+  }
+
+  // ── Assemble final HTML ──
+  const tocHtml=tocItems.map(t=>`<div class="toc-item"><span class="toc-num">${t.n}</span><span>${t.t}</span><span class="toc-page">${t.s}</span></div>`).join('');
+
+  const takeawaysHtml=takeaways.map((t,i)=>`<div class="takeaway">
+    <div class="takeaway-num">${String(i+1).padStart(2,'0')}</div>
+    <div class="takeaway-text">${t}</div>
+  </div>`).join('');
+
+  return`<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Bebas+Neue&display=swap');
+  :root{
+    --bg-page:#e8eef7;--white:#ffffff;--blue-900:#06223f;--blue-800:#0a2c52;--blue-700:#0f3d75;
+    --blue-600:#1456a8;--blue-500:#1d6fc4;--blue-400:#3a8ce0;--blue-300:#7eb2ed;--blue-200:#bfdbfe;
+    --blue-100:#dbeafe;--blue-50:#eff6ff;--text:#06223f;--text-strong:#000814;--text-soft:#1f3a5c;
+    --text-dim:#3a5275;--text-meta:#516e92;--border:#c2d2e8;--border-soft:#dde7f4;
+    --up:#b91c1c;--up-bg:#fef2f4;--up-bg-row:#fef5f7;--up-border:#f5b8c2;
+    --down:#15803d;--down-bg:#f0fdf4;--down-bg-row:#f6fdf8;--down-border:#86efac;
+    --neutral:#a86600;--critical:#991b1b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg-page)}
+  body{font-family:'Manrope',sans-serif;color:var(--text);line-height:1.55;padding:32px 20px;max-width:1280px;margin:0 auto;font-weight:500}
+  .block{background:var(--white);border-radius:14px;padding:30px 34px;margin-bottom:24px;box-shadow:0 1px 3px rgba(6,34,63,.06),0 8px 24px rgba(6,34,63,.08);border:1px solid var(--border-soft)}
+  .block-header{background:linear-gradient(135deg,var(--blue-900) 0%,var(--blue-700) 100%);color:#fff;border-radius:14px;padding:36px 40px;margin-bottom:24px;display:grid;grid-template-columns:1fr auto;gap:24px}
+  .header-meta{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.65;margin-bottom:14px}
+  .block-header h1{font-family:'Bebas Neue',sans-serif;font-size:72px;line-height:1;color:#fff;letter-spacing:-.01em}
+  .block-header h1 span{color:var(--blue-300)}
+  .header-sub{font-size:14px;color:var(--blue-200);margin-top:10px;max-width:580px}
+  .header-stats{display:flex;flex-direction:column;gap:14px;text-align:right}
+  .header-stat-label{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;opacity:.65}
+  .header-stat-value{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:.02em}
+  .section-tag{display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);margin-bottom:12px;font-weight:700}
+  .num{background:var(--blue-900);color:#fff;border-radius:5px;padding:2px 7px;font-size:10px}
+  h2{font-family:'Bebas Neue',sans-serif;font-size:42px;line-height:1.05;color:var(--blue-900);margin-bottom:8px;letter-spacing:-.01em}
+  h3{font-size:15px;font-weight:700;color:var(--blue-800);margin:22px 0 10px}
+  .block-desc{font-size:13.5px;color:var(--text-dim);margin-bottom:20px;max-width:700px}
+  .toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .toc-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px}
+  .toc-num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--blue-600);min-width:24px}
+  .toc-page{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-meta);white-space:nowrap}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  .stat-card{border-radius:10px;padding:20px 22px;border:1px solid var(--border)}
+  .stat-card.up{background:var(--up-bg);border-color:var(--up-border)}
+  .stat-card.down{background:var(--down-bg);border-color:var(--down-border)}
+  .stat-card.neutral{background:var(--blue-50);border-color:var(--blue-100)}
+  .stat-card-label{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-meta);margin-bottom:8px;font-weight:700}
+  .stat-card-value{font-family:'Bebas Neue',sans-serif;font-size:48px;line-height:1;color:var(--blue-900)}
+  .stat-card-compare{font-size:12px;color:var(--text-dim);margin-top:6px}
+  .delta-up{color:var(--up);font-weight:700}
+  .delta-down{color:var(--down);font-weight:700}
+  .takeaway{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--border-soft)}
+  .takeaway:last-child{border-bottom:none}
+  .takeaway-num{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--blue-300);min-width:36px;line-height:1.1}
+  .takeaway-text{font-size:14px;line-height:1.6}
+  .pct-up{color:var(--up);font-weight:700}
+  .pct-down{color:var(--down);font-weight:700}
+  .callout{display:flex;gap:14px;padding:14px 18px;border-radius:10px;margin-bottom:16px;border:1px solid}
+  .callout.good{background:var(--down-bg);border-color:var(--down-border)}
+  .callout.bad{background:var(--up-bg);border-color:var(--up-border)}
+  .callout.neutral{background:var(--blue-50);border-color:var(--blue-100)}
+  .callout-icon{font-size:20px;font-weight:800;color:var(--text-dim)}
+  .callout-text{font-size:13.5px;line-height:1.6}
+  .table-wrap{overflow-x:auto;margin-bottom:18px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--blue-900);color:#fff;padding:10px 12px;text-align:left;font-weight:600;font-size:12px}
+  td{padding:9px 12px;border-bottom:1px solid var(--border-soft)}
+  .rank{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--blue-600);font-weight:700}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .delta{text-align:right;font-weight:700;font-family:'JetBrains Mono',monospace;font-size:12px}
+  .delta.up{color:var(--up)}.delta.down{color:var(--down)}
+  .row-crit{background:var(--up-bg-row)}.row-warn{background:#fffbeb}.row-good{background:var(--down-bg-row)}
+  .badge{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700}
+  .badge.crit{background:var(--up-bg);color:var(--up);border:1px solid var(--up-border)}
+  .badge.warn{background:#fffbeb;color:#854d0e;border:1px solid #fde68a}
+  .badge.good{background:var(--down-bg);color:var(--down);border:1px solid var(--down-border)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .bars-container{padding:16px 0}
+  .bars-title{font-weight:700;font-size:14px;color:var(--blue-900);margin-bottom:3px}
+  .bars-subtitle{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-bottom:14px;text-transform:uppercase;letter-spacing:.07em}
+  .bar-row{display:grid;grid-template-columns:22px 1fr 120px 60px;gap:8px;margin-bottom:8px;align-items:center}
+  .bar-rank{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--blue-600);font-weight:700;text-align:right}
+  .bar-label-text{font-size:12px;color:var(--text)}
+  .bar-track{background:var(--blue-50);border-radius:4px;height:22px;overflow:hidden}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--blue-600),var(--blue-400));border-radius:4px}
+  .bar-num{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-align:right}
+  .bar-num.up{color:var(--up)}.bar-num.down{color:var(--down)}
+  .info-card{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:22px 24px}
+  .info-card-topic{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--blue-900);margin-bottom:2px}
+  .info-card-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);font-weight:600}
+  .info-row{display:grid;grid-template-columns:24px 1fr auto;gap:10px;padding:7px 0;align-items:center;border-bottom:1px dashed var(--border-soft);font-size:13px}
+  .info-row:last-child{border-bottom:none}
+  .info-rank{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--blue-700);font-weight:700}
+  .info-text{font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+  .info-text.address{font-family:'Manrope',sans-serif;font-size:12.5px}
+  .info-count{font-family:'Bebas Neue',sans-serif;color:var(--blue-700);font-size:22px}
+  footer{margin-top:30px;padding:24px;background:var(--blue-900);color:#e8f0fb;border-radius:14px;font-family:'JetBrains Mono',monospace;font-size:11px;text-align:center;letter-spacing:.08em}
+  @media print{body{padding:0;max-width:100%}.block{box-shadow:none;break-inside:avoid}}
+</style>
+
+<header class="block-header">
+  <div>
+    <div class="header-meta">ЦУР Минчистоты Московской области · Аналитическая справка · ${today}</div>
+    <h1>Городской округ <span>${xe(omsu)}</span></h1>
+    <div class="header-sub">Анализ динамики обращений жителей за период ${periodMain}${hasCmp?` в сравнении с ${periodComp}`:''}</div>
+  </div>
+  <div class="header-stats">
+    ${pop?`<div><div class="header-stat-label">Численность населения</div><div class="header-stat-value">${fmt(pop)}</div></div>`:''}
+    <div><div class="header-stat-label">Обращений за период</div><div class="header-stat-value">${fmt(totalMain)}</div></div>
+  </div>
+</header>
+
+<div class="block toc-block">
+  <div class="section-tag"><span class="num">01</span> Содержание справки</div>
+  <h2>Структура документа</h2>
+  <div class="toc-grid">${tocHtml}</div>
+</div>
+
+<div class="block">
+  <div class="section-tag"><span class="num">02</span> Ключевые выводы · саммари</div>
+  <h2>Основные итоги отчётного периода</h2>
+  <p class="block-desc">Главные показатели и тенденции по выбранным тематикам.</p>
+  ${takeawaysHtml}
+</div>
+
+${sections}
+
+<div class="block">
+  <div class="section-tag"><span class="num">${String(lastNum).padStart(2,'0')}</span> Адреса и активные заявители</div>
+  <h2>Топ адресов и заявителей по блокам</h2>
+  <p class="block-desc">Адреса и почтовые адреса заявителей с наибольшим количеством обращений за период ${periodMain}.</p>
+  ${addrMailSections||'<p>Нет данных об адресах и заявителях.</p>'}
+</div>
+
+<footer>
+  ЦУР МИНЧИСТОТЫ МО · АНАЛИТИЧЕСКАЯ СПРАВКА · ${xe(omsu).toUpperCase()} · ПЕРИОД: ${periodMain} · СФОРМИРОВАНО: ${today}
+</footer>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// PRINT / DOWNLOAD
+// ═══════════════════════════════════════════════════════
+function printReport(){
+  const w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Справка</title></head><body>');
+  w.document.write(document.getElementById('preview-area').innerHTML);
+  w.document.write('</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(),800);
+}
+
+function downloadHtml(){
+  const omsu=document.getElementById('omsuSel').value||'ОМСУ';
+  const from=document.getElementById('dateFrom').value;
+  const html='<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">'+
+    `<title>Справка_${omsu}_${from}</title></head><body>`+
+    document.getElementById('preview-area').innerHTML+'</body></html>';
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`Справка_${omsu}_${from}.html`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+// Set default dates
+const today2=new Date();
+const y=today2.getFullYear();
+document.getElementById('dateFrom').value=`${y}-01-01`;
+document.getElementById('dateTo').value=today2.toISOString().slice(0,10);
+document.getElementById('cmpFrom').value=`${y-1}-01-01`;
+document.getElementById('cmpTo').value=`${y-1}-${today2.toISOString().slice(5,10)}`;
+</script>
+</body>
+</html>
