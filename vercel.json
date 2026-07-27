@@ -5,11 +5,13 @@
     { "src": "report.html", "use": "@vercel/static" },
     { "src": "sms.html", "use": "@vercel/static" },
     { "src": "metrics.html", "use": "@vercel/static" },
+    { "src": "spravka.html", "use": "@vercel/static" },
     { "src": "api/index.js", "use": "@vercel/node" }
   ],
   "routes": [
     { "src": "/api", "dest": "/api/index.js" },
         { "src": "/metrics", "dest": "/metrics.html" },
+        { "src": "/spravka",  "dest": "/spravka.html" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
