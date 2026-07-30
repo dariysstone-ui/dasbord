@@ -184,12 +184,14 @@ function mergeGroup(dst, src) {
   }
   // mails
   for (const [k, v] of Object.entries(src.mails || {})) {
-    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {} };
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {}, sources: {} };
     dst.mails[k].c += v.c || 0;
     for (const [f, n] of Object.entries(v.facts || {}))
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + n;
     for (const [s, n] of Object.entries(v.subs || {}))
       dst.mails[k].subs[s] = (dst.mails[k].subs[s] || 0) + n;
+    for (const [s, n] of Object.entries(v.sources || {}))
+      dst.mails[k].sources[s] = (dst.mails[k].sources[s] || 0) + n;
     const existing = new Set(dst.mails[k].omsus);
     for (const o of (v.omsus || [])) existing.add(o);
     dst.mails[k].omsus = [...existing];
@@ -330,12 +332,23 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
           }
           // Mails/addrs scaled
           for (const [k,v] of Object.entries(g.mails||{})) {
-            const mailSubCount = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
-            if (mailSubCount === 0) continue;
-            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[], subs:{} };
-            dst.mails[k].c += Math.round(mailSubCount * srcRatio);
+            // Exact source count per mail if available
+            let mailSrcCount = v.sources
+              ? sourceFilter.reduce((s,src) => s + (v.sources[src]||0), 0)
+              : Math.round((v.c||0) * srcRatio);
+            if (mailSrcCount === 0) continue;
+            // Apply subFilter on top
+            if (subFilter.length > 0) {
+              const mailSubTotal = subFilter.reduce((s,sub) => s + (v.subs?.[sub]||0), 0);
+              if (mailSubTotal === 0) continue;
+              mailSrcCount = Math.round(mailSrcCount * (mailSubTotal / (v.c||1)));
+              if (mailSrcCount === 0) continue;
+            }
+            if (!dst.mails[k]) dst.mails[k] = { c:0, facts:{}, omsus:[], subs:{}, sources:{} };
+            const mRatio = (v.c||1) > 0 ? mailSrcCount / v.c : 0;
+            dst.mails[k].c += mailSrcCount;
             for (const sub of subFilter)
-              if (v.subs?.[sub]) dst.mails[k].subs[sub] = (dst.mails[k].subs[sub]||0) + Math.round(v.subs[sub] * srcRatio);
+              if (v.subs?.[sub]) dst.mails[k].subs[sub] = (dst.mails[k].subs[sub]||0) + Math.round(v.subs[sub] * mRatio);
             const ex = new Set(dst.mails[k].omsus);
             for (const o of (v.omsus||[])) ex.add(o);
             dst.mails[k].omsus = [...ex];
@@ -349,8 +362,26 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
               if (v.subs?.[sub]) dst.addrs[k].subs[sub] = (dst.addrs[k].subs[sub]||0) + Math.round(v.subs[sub] * srcRatio);
           }
         } else {
-          // Source filter only — scale whole group by source ratio
+          // Source filter only — use exact per-mail source counts when available
+          for (const [k, v] of Object.entries(g.mails || {})) {
+            const mailSrcCount = v.sources
+              ? sourceFilter.reduce((s, src) => s + (v.sources[src] || 0), 0)
+              : Math.round((v.c || 0) * srcRatio);
+            if (mailSrcCount === 0) continue;
+            if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {}, sources: {} };
+            const mRatio = (v.c || 1) > 0 ? mailSrcCount / v.c : 0;
+            dst.mails[k].c += mailSrcCount;
+            for (const [f, n] of Object.entries(v.facts || {}))
+              dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + Math.round(n * mRatio);
+            for (const [s, n] of Object.entries(v.sources || {}))
+              dst.mails[k].sources[s] = (dst.mails[k].sources[s] || 0) + n;
+            const ex = new Set(dst.mails[k].omsus);
+            for (const o of (v.omsus || [])) ex.add(o);
+            dst.mails[k].omsus = [...ex];
+          }
+          // Scale addrs and other fields by source ratio
           addToGroupScaled(dst, g, srcRatio);
+          // Subtract what addToGroupScaled added for mails (already handled above)
           total += srcTotal;
         }
       } else {
@@ -410,14 +441,31 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
         if (groupTotal === 0) continue;
         dst.total += groupTotal;
         total += groupTotal;
-        // Add mails — include if any of mail's omsus match the filter
+        // Add mails — filtered by OMSU (and source if active)
         for (const [mail, md] of Object.entries(g.mails || {})) {
           const mailOmsus = (md.omsus || []).filter(o => omsuFilter.includes(o));
           if (mailOmsus.length === 0) continue;
-          if (!dst.mails[mail]) dst.mails[mail] = { c: 0, facts: {}, omsus: [] };
-          dst.mails[mail].c += md.c || 0;
+          // Apply source filter: use exact mail.sources count
+          let mailCount = md.c || 0;
+          if (sourceFilter.length > 0) {
+            if (md.sources) {
+              mailCount = sourceFilter.reduce((sum, s) => sum + (md.sources[s] || 0), 0);
+            } else {
+              // fallback: scale by group source ratio
+              const grpSrcRatio = g.total > 0
+                ? sourceFilter.reduce((sum, s) => sum + (g.sources?.[s] || 0), 0) / g.total
+                : 1;
+              mailCount = Math.round(mailCount * grpSrcRatio);
+            }
+          }
+          if (mailCount === 0) continue;
+          if (!dst.mails[mail]) dst.mails[mail] = { c: 0, facts: {}, omsus: [], subs: {}, sources: {} };
+          dst.mails[mail].c += mailCount;
+          const mailRatio = (md.c||1) > 0 ? mailCount / md.c : 0;
           for (const [f, n] of Object.entries(md.facts || {}))
-            dst.mails[mail].facts[f] = (dst.mails[mail].facts[f] || 0) + n;
+            dst.mails[mail].facts[f] = (dst.mails[mail].facts[f] || 0) + Math.round(n * mailRatio);
+          for (const [s, n] of Object.entries(md.subs || {}))
+            dst.mails[mail].subs[s] = (dst.mails[mail].subs[s] || 0) + Math.round(n * mailRatio);
           const exM = new Set(dst.mails[mail].omsus);
           for (const o of mailOmsus) exM.add(o);
           dst.mails[mail].omsus = [...exM];
@@ -462,13 +510,15 @@ function addToGroup(dst, g) {
     dst.facts[k] = (dst.facts[k] || 0) + n;
   }
   for (const [k, v] of Object.entries(g.mails || {})) {
-    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {} };
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {}, sources: {} };
     dst.mails[k].c += v.c || 0;
     for (const [f, n] of Object.entries(v.facts || {})) {
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + n;
     }
     for (const [s, n] of Object.entries(v.subs || {}))
       dst.mails[k].subs[s] = (dst.mails[k].subs[s] || 0) + n;
+    for (const [s, n] of Object.entries(v.sources || {}))
+      dst.mails[k].sources[s] = (dst.mails[k].sources[s] || 0) + n;
     const ex = new Set(dst.mails[k].omsus);
     for (const o of (v.omsus || [])) ex.add(o);
     dst.mails[k].omsus = [...ex];
@@ -509,10 +559,13 @@ function addToGroupScaled(dst, g, ratio) {
   for (const [k, n] of Object.entries(g.facts || {}))
     dst.facts[k] = (dst.facts[k] || 0) + sc(n);
   for (const [k, v] of Object.entries(g.mails || {})) {
-    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [] };
+    // Use exact source counts when available, otherwise scale
+    if (!dst.mails[k]) dst.mails[k] = { c: 0, facts: {}, omsus: [], subs: {}, sources: {} };
     dst.mails[k].c += sc(v.c || 0);
     for (const [f, n] of Object.entries(v.facts || {}))
       dst.mails[k].facts[f] = (dst.mails[k].facts[f] || 0) + sc(n);
+    for (const [s, n] of Object.entries(v.sources || {}))
+      dst.mails[k].sources[s] = (dst.mails[k].sources[s] || 0) + n;
     // preserve omsus tags
     const exS = new Set(dst.mails[k].omsus);
     for (const o of (v.omsus || [])) exS.add(o);
