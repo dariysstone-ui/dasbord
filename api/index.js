@@ -230,7 +230,7 @@ function buildPeriodAgg(allDays, start, end, omsuFilter, sourceFilter = [], subF
         if (subTotal === 0) continue;
       }
 
-      if (!groups[sg]) groups[sg] = { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{} };
+      if (!groups[sg]) groups[sg] = { total:0, subs:{}, omsu:{}, facts:{}, mails:{}, addrs:{}, sources:{}, uks:{} };
       const dst = groups[sg];
 
       if (omsuFilter.length === 0 && sourceFilter.length === 0 && subFilter.length === 0) {
