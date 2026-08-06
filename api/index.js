@@ -11,7 +11,30 @@
 //   GITHUB_REPO   — repository name
 //   GITHUB_TOKEN  — personal access token (public_repo scope)
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
+
+// ── In-memory cache: survives multiple requests on same Vercel instance ──
+// Key: `${year}` → { data, loadedAt }
+const AGG_CACHE = {};
+const CACHE_TTL = 20 * 60 * 1000; // 20 minutes
+
+async function loadAggCached(year, url, headers) {
+  const now = Date.now();
+  if (AGG_CACHE[year] && (now - AGG_CACHE[year].loadedAt) < CACHE_TTL) {
+    console.log(`Cache HIT: ${year}_agg.json`);
+    return AGG_CACHE[year].data;
+  }
+  console.log(`Cache MISS: loading ${year}_agg.json`);
+  const resp = await fetch(url, { headers, redirect: 'follow' });
+  if (!resp.ok) {
+    if (resp.status === 404) { AGG_CACHE[year] = { data: {}, loadedAt: now }; return {}; }
+    throw new Error(`Ошибка загрузки ${year}_agg.json: ${resp.status}`);
+  }
+  const data = await resp.json();
+  AGG_CACHE[year] = { data, loadedAt: now };
+  console.log(`Cached ${year}_agg.json: ${Object.keys(data).length} days`);
+  return data;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -44,20 +67,14 @@ export default async function handler(req, res) {
     addYears(start, end);
     addYears(compStart, compEnd);
 
-    // Load all needed JSON aggregates in parallel
+    // Load all needed JSON aggregates in parallel (with cache)
     const yearAgg = {};
     await Promise.all([...yearsNeeded].map(async (year) => {
       const url = aggUrl(year);
       const headers = TOKEN
         ? { Authorization: `token ${TOKEN}`, Accept: 'application/octet-stream' }
         : { Accept: 'application/octet-stream' };
-      const resp = await fetch(url, { headers, redirect: 'follow' });
-      if (!resp.ok) {
-        if (resp.status === 404) { console.warn(`${year}_agg.json not found`); yearAgg[year] = {}; return; }
-        throw new Error(`Ошибка загрузки ${year}_agg.json: ${resp.status}`);
-      }
-      yearAgg[year] = await resp.json();
-      console.log(`Loaded ${year}_agg.json: ${Object.keys(yearAgg[year]).length} days`);
+      yearAgg[year] = await loadAggCached(year, url, headers);
     }));
 
     // ── CSV export: stream month-by-month to stay under Vercel 4.5MB limit ──
@@ -121,19 +138,22 @@ export default async function handler(req, res) {
     }
 
     // Merge all years into one flat { date -> { sg -> groupData } }
-    const allDays = {};
-    for (const agg of Object.values(yearAgg)) {
-      for (const [date, groups] of Object.entries(agg)) {
-        allDays[date] = allDays[date] || {};
-        for (const [sg, g] of Object.entries(groups)) {
-          if (!allDays[date][sg]) {
-            allDays[date][sg] = g;
-          } else {
-            mergeGroup(allDays[date][sg], g);
+    const cacheKey = [...yearsNeeded].sort().join('-');
+    if (!AGG_CACHE['_allDays_' + cacheKey] ||
+        (Date.now() - AGG_CACHE['_allDays_' + cacheKey].loadedAt) > CACHE_TTL) {
+      const allDaysBuilt = {};
+      for (const agg of Object.values(yearAgg)) {
+        for (const [date, groups] of Object.entries(agg)) {
+          allDaysBuilt[date] = allDaysBuilt[date] || {};
+          for (const [sg, g] of Object.entries(groups)) {
+            if (!allDaysBuilt[date][sg]) allDaysBuilt[date][sg] = g;
+            else mergeGroup(allDaysBuilt[date][sg], g);
           }
         }
       }
+      AGG_CACHE['_allDays_' + cacheKey] = { data: allDaysBuilt, loadedAt: Date.now() };
     }
+    const allDays = AGG_CACHE['_allDays_' + cacheKey].data;
 
     // Build aggregates for main and comparison periods
     const mainAgg  = buildPeriodAgg(allDays, start,     end,     omsuFilter, sourceFilter, subFilter, sgFilter);
